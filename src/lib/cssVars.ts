@@ -1,0 +1,21 @@
+// lib/cssVars.ts
+export const getCSSVariables = () => ({
+  bgPrimary: 'var(--color-background-primary, #ffffff)',
+  bgSecondary: 'var(--color-background-secondary, #f8fafc)',
+  bgTertiary: 'var(--color-background-tertiary, #f1f5f9)',
+  bgInfo: 'var(--color-background-info, #dbeafe)',
+  bgSuccess: 'var(--color-background-success, #dcfce7)',
+  bgWarning: 'var(--color-background-warning, #fef3c7)',
+  bgDanger: 'var(--color-background-danger, #fee2e2)',
+  textPrimary: 'var(--color-text-primary, #0f172a)',
+  textSecondary: 'var(--color-text-secondary, #475569)',
+  textTertiary: 'var(--color-text-tertiary, #94a3b8)',
+  textInfo: 'var(--color-text-info, #1d4ed8)',
+  textSuccess: 'var(--color-text-success, #15803d)',
+  textWarning: 'var(--color-text-warning, #b45309)',
+  textDanger: 'var(--color-text-danger, #dc2626)',
+  borderPrimary: 'var(--color-border-primary, #e2e8f0)',
+  borderSecondary: 'var(--color-border-secondary, #cbd5e1)',
+  borderTertiary: 'var(--color-border-tertiary, #e2e8f0)',
+  borderInfo: 'var(--color-border-info, #93c5fd)',
+});
