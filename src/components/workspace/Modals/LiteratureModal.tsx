@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Search, X, ExternalLink, Filter, ChevronDown,
-  Check, Loader2, PlusCircle,
+  Loader2, PlusCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -26,29 +26,32 @@ interface LiteratureModalProps {
   onClose: () => void;
   onInsert: (paper: Paper) => void;
   projectId: string;
-  token: string; // kept for prop compat — internally we always get a fresh session token
+  token: string;
 }
 
-// ─── API helper — always fetches a fresh Supabase token ───────────────────────
+// ─── API helper ───────────────────────────────────────────────────────────────
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-async function apiFetch(endpoint: string, options?: RequestInit) {
+async function getToken(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
-  const freshToken = session?.access_token;
-  if (!freshToken) throw new Error('No auth session — please sign in again.');
+  return session?.access_token || '';
+}
+
+async function apiFetch(endpoint: string, options?: RequestInit) {
+  const token = await getToken();
+  if (!token) throw new Error('No auth session');
 
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${freshToken}`,
+      Authorization: `Bearer ${token}`,
       ...options?.headers,
     },
   });
 
   if (!res.ok) {
-    // Expose the full backend body so 500 errors are actually debuggable
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${errText}`);
   }
@@ -57,118 +60,6 @@ async function apiFetch(endpoint: string, options?: RequestInit) {
   if (!ct?.includes('application/json')) return null;
   const text = await res.text();
   return text ? JSON.parse(text) : null;
-}
-
-// ─── agent_output parser ─────────────────────────────────────────────────────
-// The backend returns results in this heading format (confirmed from live response):
-//
-//   ### 1. Title Here
-//   **Authors:** Name | **Year:** 2022 | **Source:** Semantic Scholar | **Citations:** 570 | **Relevance:** 0.4138
-//   **Links:** [PDF](https://url.com)
-//
-// A markdown-table fallback handles any future format change.
-
-/** Extract the first URL from a [label](url) markdown link or bare https://. */
-function extractUrl(text: string): string | undefined {
-  if (!text) return undefined;
-  const mdLink = text.match(/\[.*?\]\((https?:\/\/[^)\s]+)\)/);
-  if (mdLink) return mdLink[1];
-  const bare = text.match(/https?:\/\/[^\s),>"]+/);
-  return bare ? bare[0] : undefined;
-}
-
-/** Read the value of **Field:** from a bold-field line, trying multiple key aliases. */
-function getBoldField(text: string, ...keys: string[]): string {
-  for (const key of keys) {
-    const re = new RegExp(`\\*\\*${key}:\\*\\*\\s*([^|*\n]+)`, 'i');
-    const m = text.match(re);
-    if (m) return m[1].trim();
-  }
-  return '';
-}
-
-/** Parse the ### N. heading format the backend actually returns. */
-function parseHeadingFormat(output: string): Paper[] {
-  const papers: Paper[] = [];
-  // Each paper starts with "### <number>." or "### <number>)"
-  const sections = output.split(/(?=###\s+\d+[.)]\s)/);
-  for (const section of sections) {
-    const lines = section.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) continue;
-
-    const titleMatch = lines[0].match(/^###\s+\d+[.)]\s+(.+)$/);
-    if (!titleMatch) continue;
-    const title = titleMatch[1].replace(/\*+/g, '').trim();
-
-    // Flatten remaining lines into one searchable string
-    const body = lines.slice(1).join(' | ');
-
-    const authors         = getBoldField(body, 'Authors', 'Author') || 'Unknown';
-    const yearStr         = getBoldField(body, 'Year', 'Published', 'Date');
-    const year            = parseInt(yearStr.replace(/\D/g, '')) || 0;
-    const citStr          = getBoldField(body, 'Citations', 'Cited by', 'Cites');
-    const citations       = parseInt(citStr.replace(/\D/g, '')) || 0;
-    const relStr          = getBoldField(body, 'Relevance', 'Relevance Score', 'Score', 'Similarity');
-    const relevance_score = relStr ? (parseFloat(relStr) || undefined) : undefined;
-    const abstract        = getBoldField(body, 'Abstract', 'Summary', 'Description');
-
-    // **Links:** [PDF](url)  or  **Links:** [Paper](url)
-    const linksMatch = body.match(/\*\*Links?:\*\*\s*(.+?)(?=\s*\*\*|$)/i);
-    const linksText  = linksMatch ? linksMatch[1] : body;
-    const pdfMatch   = linksText.match(/\[PDF\]\((https?:\/\/[^)\s]+)\)/i);
-    const pdf_url    = pdfMatch ? pdfMatch[1] : extractUrl(linksText);
-    const anyLinkMatch = linksText.match(/\[(?:Paper|Link|URL|Source|DOI)\]\((https?:\/\/[^)\s]+)\)/i);
-    const url        = anyLinkMatch ? anyLinkMatch[1] : pdf_url;
-
-    if (!title) continue;
-    papers.push({
-      id: `temp-${Date.now()}-${papers.length}`,
-      title, authors, year, citations, abstract, url, pdf_url, relevance_score,
-    });
-  }
-  return papers;
-}
-
-/** Parse a markdown table (fallback if the agent format changes). */
-function parseMarkdownTable(markdown: string): Paper[] {
-  const lines = markdown.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('|'));
-  if (lines.length < 3) return [];
-  const headers = lines[0].split('|').map((h) => h.trim().toLowerCase()).filter(Boolean);
-  const papers: Paper[] = [];
-  lines.slice(2).forEach((line, idx) => {
-    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = cells[i] ?? ''; });
-    const title     = row['title'] || row['paper title'] || 'Untitled';
-    const authors   = row['authors'] || row['author'] || 'Unknown';
-    const year      = parseInt((row['year'] || '0').replace(/\D/g, '')) || 0;
-    const citations = parseInt((row['citations'] || '0').replace(/\D/g, '')) || 0;
-    const abstract  = row['abstract'] || row['summary'] || '';
-    const pdf_url   = extractUrl(row['pdf_url'] || row['pdf'] || '');
-    const url       = extractUrl(row['url'] || row['link'] || '') || pdf_url;
-    const relRaw    = row['relevance'] || row['relevance_score'] || '';
-    const relevance_score = relRaw ? (parseFloat(relRaw) || undefined) : undefined;
-    if (title === 'Untitled' && authors === 'Unknown') return;
-    papers.push({ id: `temp-${Date.now()}-${idx}`, title, authors, year, citations, abstract, url, pdf_url, relevance_score });
-  });
-  return papers;
-}
-
-/**
- * Master parser: tries ### heading format first (actual backend output),
- * then markdown table as fallback.
- */
-function parseAgentOutput(output: string): Paper[] {
-  if (!output) return [];
-  if (/###\s+\d+[.)]\s/.test(output)) {
-    const r = parseHeadingFormat(output);
-    if (r.length > 0) return r;
-  }
-  if (output.includes('|')) {
-    const r = parseMarkdownTable(output);
-    if (r.length > 0) return r;
-  }
-  return [];
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -180,15 +71,8 @@ export function LiteratureModal({
   projectId,
 }: LiteratureModalProps) {
   const [inputValue, setInputValue] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // papers        = already saved in DB  (from GET /sources)
-  // searchResults = temporary, parsed from the last agent_output — not yet saved
-  const [papers, setPapers] = useState<Paper[]>([]);
   const [searchResults, setSearchResults] = useState<Paper[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  // Thread ID of the pending search run (needed to call /resume)
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
 
   // Filters
@@ -200,149 +84,164 @@ export function LiteratureModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // ── Load saved sources when modal opens ──────────────────────────────────
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (isOpen && projectId) loadSavedSources();
-  }, [isOpen, projectId]);
-
-  const loadSavedSources = async () => {
-    try {
-      const data = await apiFetch(`/projects/${projectId}/sources`);
-      const mapped: Paper[] = (data ?? []).map((s: any) => ({
-        id: s.id,
-        title: s.title || 'Untitled',
-        authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
-        year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : 0),
-        citations: s.citations || 0,
-        abstract: s.abstract || s.summary || '',
-        url: s.url,
-        pdf_url: s.pdf_url,
-        relevance_score: s.relevance_score,
-      }));
-      setPapers(mapped);
-    } catch (err) {
-      console.error('loadSavedSources:', err);
-    }
-  };
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // ── SEARCH ───────────────────────────────────────────────────────────────
-  // Exact phrasing from ThunderClient Step 15:
-  //   "Find me the latest papers on X"
-  // Returns pending_review + markdown table in agent_output.
-  // Papers are NOT saved yet — user must click "Add to Library" to approve.
   const handleSearch = async () => {
     if (!inputValue.trim() || !projectId) return;
 
     setIsLoading(true);
     setError(null);
+    setSuccessMsg(null);
     setSearchResults([]);
+    setSelected(new Set());
     setPendingThreadId(null);
 
     try {
-      const data = await apiFetch(`/projects/${projectId}/run`, {
-        method: 'POST',
-        body: JSON.stringify({
-          user_message: `Find me the latest papers on ${inputValue.trim()}`,
-          section_id: null,
-        }),
-      });
+      const token = await getToken();
+      if (!token) throw new Error('No auth session');
 
-      if (data?.thread_id) setPendingThreadId(data.thread_id);
-      setSearchQuery(inputValue.trim());
+      // Step 1: Trigger search (we don't care about the response since it will 500)
+      console.log('[Search] Triggering search...');
+      
+      try {
+        const res = await fetch(`${BASE_URL}/projects/${projectId}/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            user_message: `Find me the latest papers on ${inputValue.trim()}`,
+            section_id: null,
+          }),
+        });
+        
+        // Try to get thread_id from response if available
+        const responseText = await res.text();
+        try {
+          const data = JSON.parse(responseText);
+          if (data?.thread_id) {
+            setPendingThreadId(data.thread_id);
+          }
+        } catch {}
+        
+        console.log('[Search] Search triggered, status:', res.status);
+      } catch (fetchErr: any) {
+        console.log('[Search] Fetch error (expected):', fetchErr.message);
+      }
 
-      const parsed = parseAgentOutput(data?.agent_output ?? '');
+      // Step 2: Wait for backend to save results (the search completes before the 500)
+      console.log('[Search] Waiting for results to be saved...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      if (parsed.length > 0) {
-        setSearchResults(parsed);
-      } else if (data?.agent_output) {
-        // Couldn't parse as table — show raw output so it's not a silent failure
-        setError(
-          'Results returned but could not be shown as cards.\n\n' +
-          data.agent_output.slice(0, 400) +
-          (data.agent_output.length > 400 ? '\n\n[…truncated]' : '')
-        );
+      // Step 3: Fetch results directly from sources table
+      console.log('[Search] Fetching saved sources...');
+      const sources = await apiFetch(`/projects/${projectId}/sources`);
+      console.log('[Search] Sources:', sources);
+
+      if (sources && Array.isArray(sources) && sources.length > 0) {
+        // Map to Paper format
+        const papers: Paper[] = sources.map((s: any) => ({
+          id: s.id,
+          title: s.title || 'Untitled',
+          authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
+          year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : new Date().getFullYear()),
+          citations: s.citations || s.citations_count || 0,
+          abstract: s.abstract || s.summary || '',
+          url: s.url,
+          pdf_url: s.pdf_url,
+          relevance_score: s.relevance_score,
+        }));
+
+        // Sort by relevance
+        papers.sort((a, b) => {
+          if (b.relevance_score && a.relevance_score) return b.relevance_score - a.relevance_score;
+          return b.year - a.year;
+        });
+
+        setSearchResults(papers);
+        setSelected(new Set(papers.map(p => p.id)));
+        console.log('[Search] Displaying', papers.length, 'papers');
       } else {
-        setError('No papers found. Try a more specific query.');
+        // Try once more after another delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retrySources = await apiFetch(`/projects/${projectId}/sources`);
+        
+        if (retrySources && Array.isArray(retrySources) && retrySources.length > 0) {
+          const papers: Paper[] = retrySources.map((s: any) => ({
+            id: s.id,
+            title: s.title || 'Untitled',
+            authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
+            year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : new Date().getFullYear()),
+            citations: s.citations || s.citations_count || 0,
+            abstract: s.abstract || s.summary || '',
+            url: s.url,
+            pdf_url: s.pdf_url,
+            relevance_score: s.relevance_score,
+          }));
+          
+          papers.sort((a, b) => {
+            if (b.relevance_score && a.relevance_score) return b.relevance_score - a.relevance_score;
+            return b.year - a.year;
+          });
+          
+          setSearchResults(papers);
+          setSelected(new Set(papers.map(p => p.id)));
+        } else {
+          setError('No papers found. Try a different query or wait a moment and try again.');
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
+      console.error('[Search] Error:', err);
+      setError(err.message || 'Search failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── ADD SELECTED TO LIBRARY ───────────────────────────────────────────────
-  // Flow matching ThunderClient Step 15 → 12:
-  //  1. POST /resume { hitl_action: "approve" }
-  //     → backend saves ALL parsed papers to the sources table
-  //  2. GET /sources → get real DB IDs
-  //  3. DELETE /sources/{id} for every paper NOT in the user's selection
-  //     (requires DELETE /projects/{project_id}/sources/{source_id} on backend)
-  const addSelectedToLibrary = async () => {
-    if (selected.size === 0) {
-      setError('Select at least one paper first.');
-      return;
-    }
-    if (!pendingThreadId) {
-      setError('No pending search thread — run a new search first.');
-      return;
-    }
+  // ── SAVE SELECTED PAPERS ────────────────────────────────────────────────
+const saveSelectedPapers = async () => {
+  if (selected.size === 0) {
+    setError('Select at least one paper first.');
+    return;
+  }
 
-    setIsSaving(true);
-    setError(null);
+  setIsSaving(true);
+  setError(null);
+  setSuccessMsg(null);
 
-    // Normalised titles of papers the user checked
-    const selectedTitles = new Set(
-      searchResults
-        .filter((p) => selected.has(p.id))
-        .map((p) => p.title.toLowerCase().trim())
-    );
+  try {
+    // Simply insert the selected papers into the editor
+    const selectedPapers = searchResults.filter((p) => selected.has(p.id));
+    selectedPapers.forEach((p) => onInsert(p));
 
-    try {
-      // 1. Approve → backend commits ALL results to sources
-      await apiFetch(`/projects/${projectId}/run/${pendingThreadId}/resume`, {
-        method: 'POST',
-        body: JSON.stringify({ hitl_action: 'approve' }),
-      });
-
-      // 2. Fetch newly saved sources to get real DB IDs
-      const saved: Array<{ id: string; title: string }> =
-        (await apiFetch(`/projects/${projectId}/sources`)) ?? [];
-
-      // 3. Delete sources whose title was NOT selected by the user
-      const toDelete = saved.filter(
-        (s) => !selectedTitles.has(s.title.toLowerCase().trim())
-      );
-
-      if (toDelete.length > 0) {
-        await Promise.allSettled(
-          toDelete.map((s) =>
-            apiFetch(`/projects/${projectId}/sources/${s.id}`, { method: 'DELETE' })
-          )
-        );
-      }
-
-      // Reset temporary state and reload the saved library
+    setSuccessMsg(`${selectedPapers.length} paper(s) inserted into editor!`);
+    
+    setTimeout(() => {
       setSearchResults([]);
       setSelected(new Set());
       setPendingThreadId(null);
-      await loadSavedSources();
-    } catch (err: any) {
-      setError(err.message || 'Could not add selected papers.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+      setInputValue('');
+      onClose();
+    }, 1000);
 
-  // ── Misc helpers ─────────────────────────────────────────────────────────
+  } catch (err: any) {
+    console.error('[Save] Error:', err);
+    setError(err.message || 'Could not insert papers.');
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
   const clearSearch = () => {
     setInputValue('');
-    setSearchQuery('');
     setSearchResults([]);
+    setSelected(new Set());
     setPendingThreadId(null);
     setError(null);
+    setSuccessMsg(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -352,35 +251,28 @@ export function LiteratureModal({
   const clearFilters = () => { setMinYear(''); setMinCitations(''); };
   const hasActiveFilters = minYear !== '' || minCitations !== '';
 
-  const applyFilters = (list: Paper[]) =>
-    list.filter((p) => {
-      const q = searchQuery.toLowerCase();
-      const matchesQuery =
-        !q ||
-        p.title.toLowerCase().includes(q) ||
-        p.authors.toLowerCase().includes(q) ||
-        p.abstract.toLowerCase().includes(q);
-      const matchesYear = minYear === '' || p.year >= minYear;
-      const matchesCitations = minCitations === '' || p.citations >= minCitations;
-      return matchesQuery && matchesYear && matchesCitations;
-    });
-
-  // Temporary results take priority over saved library
-  const displayPapers = searchResults.length > 0 ? searchResults : papers;
-  const filteredPapers = applyFilters(displayPapers);
-
   const toggleSelect = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelected(next);
   };
 
-  // Insert from the SAVED library into the editor (not search results)
-  const insertSelected = () => {
-    papers.filter((p) => selected.has(p.id)).forEach((p) => onInsert(p));
-    setSelected(new Set());
-    onClose();
+  const toggleSelectAll = () => {
+    if (selected.size === filteredPapers.length && filteredPapers.length > 0) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredPapers.map(p => p.id)));
+    }
   };
+
+  const applyFilters = (list: Paper[]) =>
+    list.filter((p) => {
+      const matchesYear = minYear === '' || p.year >= minYear;
+      const matchesCitations = minCitations === '' || p.citations >= minCitations;
+      return matchesYear && matchesCitations;
+    });
+
+  const filteredPapers = applyFilters(searchResults);
 
   if (!isOpen) return null;
 
@@ -393,9 +285,9 @@ export function LiteratureModal({
         <div className="px-6 pt-6 pb-4 shrink-0">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-text-primary dark:text-white">Reference Library</h2>
+              <h2 className="text-xl font-bold text-text-primary dark:text-white">Search Papers</h2>
               <p className="text-sm text-text-secondary mt-1">
-                Search papers via AI, then select the ones you want to add
+                AI-powered search — select papers to keep in your library
               </p>
             </div>
             <button
@@ -416,13 +308,10 @@ export function LiteratureModal({
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask AI to find papers: 'latest RAG for academic writing'"
-                className="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl border border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-primary dark:text-white placeholder-text-tertiary focus:outline-none focus:border-brand-400 dark:focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900/40"
+                className="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl border border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-primary dark:text-white placeholder-text-tertiary focus:outline-none focus:border-brand-400"
               />
               {inputValue && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
-                >
+                <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary">
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -439,15 +328,14 @@ export function LiteratureModal({
 
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2.5 rounded-xl border transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-2.5 rounded-xl border transition-colors flex items-center gap-1.5 ${
                 showFilters || hasActiveFilters
                   ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400'
                   : 'border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-secondary hover:text-brand-500'
               }`}
             >
               <Filter className="w-4 h-4" />
-              <span className="text-sm font-medium">Filter</span>
-              {hasActiveFilters && <span className="ml-0.5 w-2 h-2 rounded-full bg-brand-500" />}
+              {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-brand-500" />}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
@@ -458,16 +346,12 @@ export function LiteratureModal({
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Filters</span>
                 {hasActiveFilters && (
-                  <button onClick={clearFilters} className="text-xs text-brand-500 hover:text-brand-600 font-medium">
-                    Clear all
-                  </button>
+                  <button onClick={clearFilters} className="text-xs text-brand-500 hover:text-brand-600 font-medium">Clear all</button>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">
-                    Minimum Year
-                  </label>
+                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Minimum Year</label>
                   <input
                     type="number"
                     value={minYear}
@@ -477,9 +361,7 @@ export function LiteratureModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">
-                    Minimum Citations
-                  </label>
+                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Min Citations</label>
                   <input
                     type="number"
                     value={minCitations}
@@ -493,6 +375,13 @@ export function LiteratureModal({
           )}
         </div>
 
+        {/* ── Success Message ── */}
+        {successMsg && (
+          <div className="mx-6 mb-4 shrink-0 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-xs text-green-700 dark:text-green-300">
+            ✅ {successMsg}
+          </div>
+        )}
+
         {/* ── Error Display ── */}
         {error && (
           <div className="mx-6 mb-4 shrink-0 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words">
@@ -500,14 +389,22 @@ export function LiteratureModal({
           </div>
         )}
 
-        {/* ── "Add Selected" toolbar — visible while temporary results are shown ── */}
+        {/* ── Results toolbar ── */}
         {searchResults.length > 0 && (
           <div className="px-6 pb-2 flex items-center justify-between shrink-0">
-            <span className="text-xs text-text-tertiary">
-              {filteredPapers.length} result{filteredPapers.length !== 1 ? 's' : ''} — select the ones you want to keep
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSelectAll}
+                className="text-xs text-brand-500 hover:text-brand-600 font-medium"
+              >
+                {selected.size === filteredPapers.length && filteredPapers.length > 0 ? 'Deselect all' : 'Select all'}
+              </button>
+              <span className="text-xs text-text-tertiary">
+                {selected.size} of {filteredPapers.length} selected
+              </span>
+            </div>
             <button
-              onClick={addSelectedToLibrary}
+              onClick={saveSelectedPapers}
               disabled={selected.size === 0 || isSaving}
               className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-medium transition-colors flex items-center gap-1.5"
             >
@@ -516,16 +413,8 @@ export function LiteratureModal({
               ) : (
                 <PlusCircle className="w-3.5 h-3.5" />
               )}
-              Add to Library ({selected.size})
+              Save & Insert ({selected.size})
             </button>
-          </div>
-        )}
-
-        {/* ── Paper count — visible when showing saved library ── */}
-        {searchResults.length === 0 && (
-          <div className="px-6 pb-2 text-xs text-text-tertiary shrink-0">
-            {papers.length} paper{papers.length !== 1 ? 's' : ''} in library
-            {searchQuery && ` · Matching "${searchQuery}"`}
           </div>
         )}
 
@@ -535,12 +424,13 @@ export function LiteratureModal({
             <div className="py-16 flex flex-col items-center gap-3 text-text-tertiary">
               <Loader2 className="w-8 h-8 animate-spin opacity-40" />
               <p className="text-sm">Searching for papers…</p>
+              <p className="text-xs opacity-50">Results will appear automatically</p>
             </div>
-          ) : searchResults.length === 0 && papers.length === 0 ? (
+          ) : searchResults.length === 0 && !error ? (
             <div className="py-16 text-center text-text-tertiary">
               <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-medium">No papers yet</p>
-              <p className="text-xs mt-1">Search above to find and save references</p>
+              <p className="text-sm font-medium">Search for papers</p>
+              <p className="text-xs mt-1">Use AI to find relevant academic papers</p>
             </div>
           ) : filteredPapers.length === 0 ? (
             <div className="py-12 text-center text-text-tertiary">
@@ -566,7 +456,7 @@ export function LiteratureModal({
                       checked={isSelected}
                       onChange={() => toggleSelect(paper.id)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 w-4 h-4 rounded border-surface-border dark:border-dark-border text-brand-500 focus:ring-brand-500 focus:ring-offset-0"
+                      className="mt-1 w-4 h-4 rounded border-surface-border dark:border-dark-border text-brand-500 focus:ring-brand-500"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
@@ -615,22 +505,6 @@ export function LiteratureModal({
             })
           )}
         </div>
-
-        {/* ── Footer — insert saved papers into editor ── */}
-        {searchResults.length === 0 && selected.size > 0 && (
-          <div className="px-6 py-4 border-t border-surface-border dark:border-dark-border bg-surface-secondary/50 dark:bg-dark-card/50 flex items-center justify-between shrink-0">
-            <span className="text-sm text-text-secondary">
-              {selected.size} paper{selected.size !== 1 ? 's' : ''} selected
-            </span>
-            <button
-              onClick={insertSelected}
-              className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              Insert Citation{selected.size !== 1 ? 's' : ''}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

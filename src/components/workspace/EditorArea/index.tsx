@@ -395,15 +395,15 @@ function CommentsContent({ editor, comments, newCommentText, setNewCommentText, 
   );
 }
 
-function TodosContent({ editor, todos, newTodoText, setNewTodoText, vars }: any) {
+function TodosContent({ todos, newTodoText, setNewTodoText, addTodo, toggleTodo, deleteTodo, vars }: any) {
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
         <input type="text" value={newTodoText} onChange={(e) => setNewTodoText(e.target.value)}
           placeholder="Add a TODO..." className="flex-1 px-3 py-2 text-xs rounded-lg border outline-none"
           style={{ background: vars.bgPrimary, borderColor: vars.borderSecondary, color: vars.textPrimary }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && newTodoText.trim()) { editor.chain().focus().insertContent(`[TODO:${newTodoText}] `).run(); setNewTodoText(''); } }} />
-        <button onClick={() => { if (!newTodoText.trim()) return; editor.chain().focus().insertContent(`[TODO:${newTodoText}] `).run(); setNewTodoText(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && newTodoText.trim()) addTodo(); }} />
+        <button onClick={addTodo}
           disabled={!newTodoText.trim()} className="px-3 py-2 rounded-lg disabled:opacity-50"
           style={{ background: vars.bgWarning, color: vars.textWarning }}><Plus className="w-4 h-4" /></button>
       </div>
@@ -416,10 +416,12 @@ function TodosContent({ editor, todos, newTodoText, setNewTodoText, vars }: any)
         <div className="space-y-2 max-h-48 overflow-y-auto">
           {todos.map((t: any) => (
             <div key={t.id} className="flex items-start gap-2 p-2.5 rounded-xl border group"
-              style={{ background: 'rgba(254,240,138,0.15)', borderColor: 'rgba(254,240,138,0.5)' }}>
-              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: '#a16207' }} />
-              <p className="text-xs flex-1" style={{ color: vars.textPrimary }}>{t.text}</p>
-              <button onClick={() => { const html = editor.getHTML(); editor.commands.setContent(html.replace(`[TODO:${t.text}]`, '')); }}
+              style={{ background: t.done ? 'rgba(187,247,208,0.2)' : 'rgba(254,240,138,0.15)', borderColor: t.done ? 'rgba(34,197,94,0.35)' : 'rgba(254,240,138,0.5)' }}>
+              <button onClick={() => toggleTodo(t.id)} className="mt-0.5 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" style={{ color: t.done ? '#16a34a' : '#a16207' }} />
+              </button>
+              <p className="text-xs flex-1" style={{ color: vars.textPrimary, textDecoration: t.done ? 'line-through' : 'none', opacity: t.done ? 0.75 : 1 }}>{t.text}</p>
+              <button onClick={() => deleteTodo(t.id)}
                 className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100" style={{ color: vars.textDanger }}>
                 <X className="w-3 h-3" />
               </button>
@@ -450,7 +452,7 @@ export function EditorArea(props: EditorAreaProps) {
   const {
     editor, activeSection, writingStyle, projectTitle,
     saved, onSave, showColorPicker, setShowColorPicker,
-    textColor, setTextColor, wordCount, charCount,
+    textColor, setTextColor, wordCount, charCount, onInlineSuggestion,
   } = props;
 
   const vars = getCSSVariables();
@@ -482,8 +484,8 @@ export function EditorArea(props: EditorAreaProps) {
 
   // Custom hooks
   const { slashMenu, slashIdx, filteredSlash, execSlashCommand } = useSlashCommands(editor, scrollRef);
-  const { comments, unresolvedComments, newCommentText, setNewCommentText, addComment, resolveComment, deleteComment } = useComments(editor);
-  const { todos, newTodoText, setNewTodoText } = useTodos(editor);
+  const { comments, unresolvedComments, newCommentText, setNewCommentText, addComment, resolveComment, deleteComment } = useComments(editor, activeSection?.id ?? null);
+  const { todos, newTodoText, setNewTodoText, addTodo, toggleTodo, deleteTodo } = useTodos(editor, activeSection?.id ?? null);
   const tableOps = useTableOperations(editor);
 
   // Sync editor styles
@@ -671,8 +673,11 @@ ${content}
           width={320}
         >
           <TodosContent
-            editor={editor} todos={todos}
+            todos={todos}
             newTodoText={newTodoText} setNewTodoText={setNewTodoText}
+            addTodo={addTodo}
+            toggleTodo={toggleTodo}
+            deleteTodo={deleteTodo}
             vars={vars}
           />
         </FloatingModernPanel>
@@ -793,6 +798,18 @@ ${content}
               {todos.length}
             </span>
           )}
+        </button>
+
+        <Sep vars={vars} />
+
+        <button
+          onClick={() => onInlineSuggestion?.()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:scale-105"
+          style={{ background: vars.bgInfo, color: vars.textInfo }}
+          title="Generate inline AI suggestion from selected text"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Inline AI
         </button>
 
         <Sep vars={vars} />

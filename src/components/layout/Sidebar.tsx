@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
@@ -72,6 +72,7 @@ function CoWriteXLogo({ collapsed }: { collapsed: boolean }) {
 
 export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   
@@ -127,6 +128,17 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
     setCollapsed(!collapsed);
   };
 
+  const handleVisualizationClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const projectId = typeof window !== 'undefined' ? localStorage.getItem('cowritex:lastProjectId') : null;
+    if (projectId) {
+      router.push(`/visualization?projectId=${projectId}`);
+    } else {
+      router.push('/visualization');
+    }
+    onClose?.();
+  };
+
   return (
     <aside 
       className={`relative flex flex-col h-full bg-white dark:bg-dark-surface border-r border-surface-border dark:border-dark-border flex-shrink-0 transition-all duration-300 ease-in-out ${
@@ -175,11 +187,13 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
       <nav className={`flex-1 overflow-y-auto ${collapsed ? 'px-2 mt-4 space-y-2' : 'px-3 mt-4 space-y-1'}`}>
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = isActive(href);
+          const isVisualization = href === '/visualization';
+          
           return (
             <Link
               key={href}
-              href={href}
-              onClick={onClose}
+              href={isVisualization ? '#' : href}
+              onClick={isVisualization ? handleVisualizationClick : onClose}
               className={`group relative flex items-center rounded-xl transition-all duration-150 ${
                 collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-2.5'
               } ${

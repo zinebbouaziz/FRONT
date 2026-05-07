@@ -8,7 +8,7 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ─── reusable primitives ─── */
+/* ─── Reusable components ─── */
 
 function SectionCard({ title, icon: Icon, iconBg, children, action }: {
   title: string;
@@ -225,34 +225,38 @@ export default function SettingsPage() {
   // ─── Theme ──────────────────────────────────────────
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  // ─── Fetch user data from backend & metadata on mount ─
+  // ─── Fetch user profile from backend + AI prefs from metadata ───
   useEffect(() => {
     const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return; // user not logged in
-
-        // 1. Get user profile from backend (PATCHable fields)
+        if (!session) return;
         const token = session.access_token;
+
+        // 1. Profile from backend
         const res = await fetch(`${API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
           setFullName(data.full_name || '');
-          setEmail(data.email || ''); // may come from Supabase claims, but not editable directly via this endpoint
+          setEmail(data.email || '');
           setPosition(data.academic_position || '');
-          setDepartment(data.organization || ''); // map to department for UI
-          setInterests(data.field_interests ? data.field_interests.split(',').map((s: string) => s.trim()) : []);
+          setDepartment(data.organization || '');
+          setInterests(
+            data.field_interests
+              ? data.field_interests.split(',').map((s: string) => s.trim())
+              : []
+          );
         }
 
-        // 2. Get AI preferences from Supabase user metadata
+        // 2. AI preferences from Supabase Auth user metadata
         const { data: { user } } = await supabase.auth.getUser();
-        const meta = user?.user_metadata?.ai_preferences;
-        if (meta) {
-          setSelectedModel(meta.selectedModel || 'gemini');
-          setAssistantLevel(meta.assistantLevel || 'moderate');
-          setTone(meta.tone || 'academic');
+        const aiPrefs = user?.user_metadata?.ai_preferences;
+        if (aiPrefs) {
+          setSelectedModel(aiPrefs.selectedModel || 'gemini');
+          setAssistantLevel(aiPrefs.assistantLevel || 'moderate');
+          setTone(aiPrefs.tone || 'academic');
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -301,8 +305,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           full_name: fullName,
           academic_position: position,
-          organization: department,               // backend field is "organization"
-          field_interests: interests.join(', '),   // comma-separated string
+          organization: department,
+          field_interests: interests.join(', '),
         }),
       });
 
@@ -321,15 +325,19 @@ export default function SettingsPage() {
     }
   };
 
-  // ─── Save AI preferences to Supabase user metadata ──
+  // ─── Save AI preferences to user metadata ──────────
   const handleSaveAI = async () => {
     setAiLoading(true);
     try {
-      const prefs = { selectedModel, assistantLevel, tone };
       const { error } = await supabase.auth.updateUser({
-        data: { ai_preferences: prefs },
+        data: {
+          ai_preferences: {
+            selectedModel,
+            assistantLevel,
+            tone,
+          },
+        },
       });
-
       if (error) throw error;
 
       setSavedAI(true);
@@ -351,7 +359,6 @@ export default function SettingsPage() {
 
   const removeInterest = (i: string) => setInterests(interests.filter(x => x !== i));
 
-  // ─── Initials from name ────────────────────────────
   const initials = fullName
     .split(' ')
     .map(n => n[0])
@@ -414,8 +421,7 @@ export default function SettingsPage() {
           </Field>
 
           <Field label="Email address">
-            <Input value={email} onChange={setEmail} placeholder="you@university.edu" type="email"  />
-            {/* Email is read-only (managed by Supabase) */}
+            <Input value={email} onChange={setEmail} placeholder="you@university.edu" type="email" />
           </Field>
 
           <Field label="Academic Position">
@@ -478,7 +484,11 @@ export default function SettingsPage() {
       </SectionCard>
 
       {/* ── AI Preferences ── */}
-      <SectionCard title="AI Preferences" icon={Cpu} iconBg="bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400">
+      <SectionCard
+        title="AI Preferences"
+        icon={Cpu}
+        iconBg="bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400"
+      >
         <Field label="AI Model">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {AI_MODELS.map(model => {

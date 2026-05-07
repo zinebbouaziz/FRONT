@@ -14,6 +14,7 @@ export interface EditorAreaProps {
   setTextColor: (v: string) => void;
   wordCount: number;
   charCount: number;
+  onInlineSuggestion?: () => void;
 }
 
 export interface BubblePos { x: number; y: number; show: boolean }

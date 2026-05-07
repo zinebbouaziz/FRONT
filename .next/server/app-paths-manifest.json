@@ -1,0 +1,8 @@
+{
+  "/landingPage/page": "app/landingPage/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/auth/login/page": "app/auth/login/page.js",
+  "/auth/signup/page": "app/auth/signup/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/workspace/page": "app/workspace/page.js"
+}

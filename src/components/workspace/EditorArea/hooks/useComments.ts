@@ -1,5 +1,6 @@
 // components/workspace/EditorArea/hooks/useComments.ts
 import { useState, useCallback } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Editor } from '@tiptap/core';
 import type { Comment } from '../type'; // ✅ Fixed import path
 
@@ -15,21 +16,40 @@ interface UseCommentsReturn {
   deleteComment: (id: string) => void;
 }
 
-export function useComments(editor: Editor | null): UseCommentsReturn {
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: '1',
-      text: 'Should we add more detail here?',
-      selectedText: 'Introduction',
-      author: 'You',
-      createdAt: new Date(),
-      resolved: false,
-      from: 0,
-      to: 12,
-    },
-  ]);
+const KEY_PREFIX = 'cowritex:comments:';
+
+export function useComments(editor: Editor | null, sectionId?: string | null): UseCommentsReturn {
+  const storageKey = useMemo(
+    () => (sectionId ? `${KEY_PREFIX}${sectionId}` : null),
+    [sectionId]
+  );
+  const [comments, setComments] = useState<Comment[]>([]);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
+
+  useEffect(() => {
+    if (!storageKey) {
+      setComments([]);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        setComments([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Array<Omit<Comment, 'createdAt'> & { createdAt: string }>;
+      setComments(parsed.map((c) => ({ ...c, createdAt: new Date(c.createdAt) })));
+    } catch {
+      setComments([]);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    const serializable = comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() }));
+    localStorage.setItem(storageKey, JSON.stringify(serializable));
+  }, [comments, storageKey]);
 
   const unresolvedComments = comments.filter((c) => !c.resolved);
 

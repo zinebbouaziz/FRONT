@@ -253,25 +253,122 @@ export function Toolbar({
     setShowLinkModal(false);
   };
 
+  // Convert HTML to plain text for LaTeX conversion
+  const htmlToPlainText = (html: string): string => {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    return temp.textContent || temp.innerText || '';
+  };
+
+  // Simple HTML to LaTeX converter
+  const htmlToLatex = (html: string): string => {
+    let latex = '\\documentclass[12pt]{article}\n';
+    latex += '\\usepackage[utf8]{inputenc}\n';
+    latex += '\\usepackage{amsmath}\n';
+    latex += '\\usepackage{geometry}\n';
+    latex += '\\geometry{margin=1in}\n';
+    latex += '\\title{Research Paper}\n';
+    latex += '\\author{}\n';
+    latex += '\\date{}\n';
+    latex += '\\begin{document}\n';
+    latex += '\\maketitle\n';
+
+    // Simple HTML tag stripping and LaTeX conversion
+    let content = html
+      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '\n\\section*{$1}\n')
+      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '\n\\subsection*{$1}\n')
+      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '\n\\subsubsection*{$1}\n')
+      .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '\n\\paragraph{$1}\n')
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '\\textbf{$1}')
+      .replace(/<em[^>]*>(.*?)<\/em>/gi, '\\textit{$1}')
+      .replace(/<u[^>]*>(.*?)<\/u>/gi, '\\underline{$1}')
+      .replace(/<li[^>]*>(.*?)<\/li>/gi, '\\item $1\n')
+      .replace(/<ul[^>]*>(.*?)<\/ul>/gi, '\\begin{itemize}\n$1\\end{itemize}\n')
+      .replace(/<ol[^>]*>(.*?)<\/ol>/gi, '\\begin{enumerate}\n$1\\end{enumerate}\n')
+      .replace(/<br[^>]*>/gi, '\n')
+      .replace(/<img[^>]*src="([^"]*)"[^>]*>/gi, '% [Image: $1]\n')
+      .replace(/<[^>]*>/g, ''); // Remove remaining HTML tags
+
+    latex += content;
+    latex += '\n\\end{document}';
+    
+    return latex;
+  };
+
+  // Export to PDF using print dialog
+  const exportToPdf = () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    
+    // Create a styled HTML document for printing
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Research Paper</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 2cm; color: #333; }
+          h1 { font-size: 24px; margin: 20px 0 10px; font-weight: bold; }
+          h2 { font-size: 20px; margin: 15px 0 8px; font-weight: bold; }
+          h3 { font-size: 16px; margin: 12px 0 6px; font-weight: bold; }
+          h4 { font-size: 14px; margin: 10px 0 5px; font-weight: bold; }
+          p { margin: 10px 0; }
+          strong { font-weight: bold; }
+          em { font-style: italic; }
+          u { text-decoration: underline; }
+          ul, ol { margin: 10px 0; padding-left: 2cm; }
+          li { margin: 5px 0; }
+          table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New'; }
+          pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+          blockquote { border-left: 4px solid #ccc; padding-left: 1cm; margin: 10px 0; font-style: italic; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+      </html>
+    `;
+
+    // Open print dialog
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+  };
+
+  // Export to LaTeX
+  const exportToLatex = () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    const latexContent = htmlToLatex(html);
+    
+    const blob = new Blob([latexContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'research_paper.tex';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExport = (format: 'pdf' | 'latex') => {
-    if (onExport) {
-      onExport(format);
-    } else if (editor) {
-      let content = '';
-      if (format === 'pdf') {
-        content = editor.getHTML();
-      } else if (format === 'latex') {
-        content = editor.getText();
-      }
-      const blob = new Blob([content], { type: format === 'pdf' ? 'text/html' : 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `document.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    if (format === 'pdf') {
+      exportToPdf();
+    } else if (format === 'latex') {
+      exportToLatex();
     }
     setShowExportModal(false);
   };

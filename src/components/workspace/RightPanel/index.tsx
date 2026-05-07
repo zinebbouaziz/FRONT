@@ -6,6 +6,37 @@ import { SuggestionsPanel } from './SuggestionsPanel';
 import { LiteratureReviewPanel } from './LiteraturePanel';
 import { VersionsPanel } from './VersionPanel';
 
+type HitlStatus = 'idle' | 'pending_review' | 'error';
+
+interface RightPanelProps {
+  rightPanel: string;
+  rightOpen: boolean;
+  setRightPanel: (panel: string) => void;
+  setRightOpen: (open: boolean) => void;
+  pendingCount: number;
+  messages: any[];
+  chatInput: string;
+  setChatInput: (value: string) => void;
+  sendMessage: () => void;
+  chatLoading: boolean;
+  suggestions: any[];
+  onAcceptSuggestion: (id: string) => void;
+  onRejectSuggestion: (id: string) => void;
+  onInsertCitation?: (paper: any) => void;
+  projectId: string;
+  token: string;
+  hitlStatus: HitlStatus;
+  hitlAgentOutput: string | null;
+  hitlIntents: string[];
+  onHitlApprove: () => void;
+  onHitlEdit: (editedText: string) => void;
+  onHitlRegenerate: (feedback: string) => void;
+  versions: any[];
+  versionsLoading: boolean;
+  onRestoreVersion: (versionId: string) => void;
+  sectionId: string | null;
+}
+
 export function RightPanel({
   rightPanel,
   rightOpen,
@@ -20,12 +51,20 @@ export function RightPanel({
   suggestions,
   onAcceptSuggestion,
   onRejectSuggestion,
-  litReview,
-  setLitReview,
   onInsertCitation,
-  projectId,   // new
-  token,       // new
-}: any) {
+  projectId,
+  token,
+  hitlStatus,
+  hitlAgentOutput,
+  hitlIntents,
+  onHitlApprove,
+  onHitlEdit,
+  onHitlRegenerate,
+  versions,
+  versionsLoading,
+  onRestoreVersion,
+  sectionId,
+}: RightPanelProps) {
 
   const panelTitles: Record<string, string> = {
     chat: 'AI Assistant',
@@ -48,7 +87,6 @@ export function RightPanel({
       {rightOpen && (
         <div className="w-72 h-full flex flex-col bg-white dark:bg-dark-surface border-l border-surface-border dark:border-dark-border overflow-hidden">
 
-          {/* HEADER */}
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0">
             <span className="text-2xl font-bold text-text-primary dark:text-white">
               {panelTitles[rightPanel]}
@@ -61,7 +99,6 @@ export function RightPanel({
             )}
           </div>
 
-          {/* SCROLLABLE CONTENT */}
           <div className="flex-1 min-h-0 overflow-y-auto">
             {rightPanel === 'chat' && (
               <ChatPanel
@@ -70,6 +107,12 @@ export function RightPanel({
                 setChatInput={setChatInput}
                 sendMessage={sendMessage}
                 chatLoading={chatLoading}
+                hitlStatus={hitlStatus}
+                hitlAgentOutput={hitlAgentOutput}
+                hitlIntents={hitlIntents}
+                onHitlApprove={onHitlApprove}
+                onHitlEdit={onHitlEdit}
+                onHitlRegenerate={onHitlRegenerate}
               />
             )}
 
@@ -83,22 +126,23 @@ export function RightPanel({
 
             {rightPanel === 'literature' && (
               <LiteratureReviewPanel
-                litReview={litReview}
-                setLitReview={setLitReview}
-                onInsertCitation={onInsertCitation}
-                projectId={projectId}   // new
-                token={token}           // new
+                projectId={projectId}
+                token={token}
               />
             )}
 
             {rightPanel === 'versions' && (
-              <VersionsPanel />
+              <VersionsPanel
+                sectionId={sectionId}
+                versions={versions}
+                versionsLoading={versionsLoading}
+                onRestoreVersion={onRestoreVersion}
+              />
             )}
           </div>
         </div>
       )}
 
-      {/* ICON RAIL */}
       <IconRail
         rightPanel={rightPanel}
         rightOpen={rightOpen}

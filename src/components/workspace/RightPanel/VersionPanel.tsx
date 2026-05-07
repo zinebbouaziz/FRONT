@@ -1,37 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { FileText, Edit3, Clock, PlusCircle, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-// ─── API helper ───────────────────────────────────────────────────────────────
-
-async function apiFetch(endpoint: string, options?: RequestInit) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  if (!token) throw new Error('No auth session');
-
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
-
-  if (!res.ok) {
-    const err = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${err}`);
-  }
-
-  const ct = res.headers.get('content-type');
-  if (!ct?.includes('application/json')) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+import { useState } from 'react';
+import { Edit3, Clock, PlusCircle, Loader2 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,10 +15,10 @@ interface Version {
 }
 
 interface VersionsPanelProps {
-  /** The currently active section — versions are per-section. */
   sectionId?: string | null;
-  /** Called after a restore so the editor can reload the new current content. */
-  onRestore?: (content: string) => void;
+  versions?: Version[];
+  versionsLoading?: boolean;
+  onRestoreVersion?: (versionId: string) => void | Promise<void>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,34 +55,15 @@ function getAction(authorType: 'ai' | 'human', versionNumber: number) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
-  const [allVersions, setAllVersions] = useState<Version[]>([]);
+export function VersionsPanel({
+  sectionId,
+  versions = [],
+  versionsLoading = false,
+  onRestoreVersion,
+}: VersionsPanelProps) {
   const [visible, setVisible]         = useState(PAGE);
-  const [loading, setLoading]         = useState(false);
   const [restoring, setRestoring]     = useState<string | null>(null); // id being restored
   const [error, setError]             = useState<string | null>(null);
-
-  // ── Fetch on sectionId change ──────────────────────────────────────────────
-  const fetchVersions = useCallback(async () => {
-    if (!sectionId) { setAllVersions([]); return; }
-    setLoading(true);
-    setError(null);
-    try {
-      const data: Version[] = await apiFetch(`/sections/${sectionId}/versions`);
-      // Backend returns newest-first per spec; sort defensively
-      const sorted = (data ?? []).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setAllVersions(sorted);
-      setVisible(PAGE); // reset pagination on section change
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [sectionId]);
-
-  useEffect(() => { fetchVersions(); }, [fetchVersions]);
 
   // ── Restore ────────────────────────────────────────────────────────────────
   const handleRestore = async (version: Version) => {
@@ -120,14 +71,9 @@ export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
     setRestoring(version.id);
     setError(null);
     try {
-      await apiFetch(`/sections/${sectionId}/versions/restore`, {
-        method: 'POST',
-        body: JSON.stringify({ version_id: version.id }),
-      });
-      // Refresh list so is_current badge moves to the restored version
-      await fetchVersions();
-      // Notify parent editor to reload content
-      onRestore?.(version.content);
+      if (onRestoreVersion) {
+        await onRestoreVersion(version.id);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -135,11 +81,10 @@ export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
     }
   };
 
-  const handleClear    = () => setAllVersions([]);
   const handleLoadMore = () => setVisible((v) => v + PAGE);
 
-  const displayedVersions = allVersions.slice(0, visible);
-  const hasMore = visible < allVersions.length;
+  const displayedVersions = versions.slice(0, visible);
+  const hasMore = visible < versions.length;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -156,12 +101,9 @@ export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
           </p>
         </div>
 
-        <button
-          onClick={handleClear}
-          className="text-[10px] px-2 py-1 rounded-md border border-surface-border dark:border-dark-border hover:border-brand-300 hover:text-brand-500 transition"
-        >
-          Clear
-        </button>
+        <span className="text-[10px] text-text-tertiary">
+          {versions.length} versions
+        </span>
       </div>
 
       {/* ERROR */}
@@ -170,21 +112,21 @@ export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
       )}
 
       {/* LOADING */}
-      {loading && (
+      {versionsLoading && (
         <div className="flex justify-center py-6">
           <Loader2 className="w-4 h-4 animate-spin text-text-tertiary" />
         </div>
       )}
 
       {/* EMPTY — no section selected */}
-      {!loading && !sectionId && (
+      {!versionsLoading && !sectionId && (
         <p className="text-[10px] text-text-tertiary pl-6 py-4">
           Select a section to see its history.
         </p>
       )}
 
       {/* TIMELINE */}
-      {!loading && sectionId && (
+      {!versionsLoading && sectionId && (
         <div className="relative pl-6 space-y-5">
 
           {/* vertical line */}
@@ -268,7 +210,7 @@ export function VersionsPanel({ sectionId, onRestore }: VersionsPanelProps) {
       <div className="pt-2 border-t border-surface-border dark:border-dark-border">
         <button
           onClick={handleLoadMore}
-          disabled={!hasMore || loading}
+          disabled={!hasMore || versionsLoading}
           className="w-full flex items-center justify-center gap-2 text-[10px] text-text-secondary hover:text-brand-500 transition disabled:opacity-40"
         >
           <PlusCircle className="w-3.5 h-3.5" />
