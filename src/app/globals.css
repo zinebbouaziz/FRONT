@@ -1,0 +1,446 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-sora: 'Sora', system-ui, sans-serif;
+  --font-jetbrains: 'JetBrains Mono', monospace;
+
+  /* Light mode */
+  --bg: #f8f9fc;
+  --surface: #ffffff;
+  --surface-secondary: #f4f6fb;
+  --surface-tertiary: #f8f9fc;
+  --border: #e4e7f0;
+  --border-secondary: #e4e7f0;
+  --border-tertiary: #e4e7f0;
+  --text-primary: #1a1d2e;
+  --text-secondary: #6b7194;
+  --text-tertiary: #9ba3c4;
+  --text-danger: #ef4444;
+  --text-success: #22c55e;
+  --text-warning: #eab308;
+  --text-info: #6550e8;
+  --brand: #6550e8;
+  --brand-light: #ede9ff;
+  --background-primary: #ffffff;
+  --background-secondary: #f4f6fb;
+  --background-tertiary: #f8f9fc;
+  --background-info: #ede9ff;
+  --background-danger: #fee2e2;
+  --background-warning: #fef08a;
+  --background-success: #dcfce7;
+  --border-info: #6550e8;
+  
+  /* RGB versions for rgba() usage */
+  --color-background-primary-rgb: 255, 255, 255;
+  --color-background-secondary-rgb: 244, 246, 251;
+}
+
+.dark {
+  --bg: #0f1117;
+  --surface: #1a1d26;
+  --surface-secondary: #1e2130;
+  --surface-tertiary: #13151e;
+  --border: #2a2d3e;
+  --border-secondary: #2a2d3e;
+  --border-tertiary: #2a2d3e;
+  --text-primary: #e8eaf4;
+  --text-secondary: #9ba3c4;
+  --text-tertiary: #6b7194;
+  --text-danger: #f87171;
+  --text-success: #4ade80;
+  --text-warning: #facc15;
+  --text-info: #8b7ef7;
+  --brand: #8b7ef7;
+  --brand-light: #2d2560;
+  --background-primary: #1a1d26;
+  --background-secondary: #1e2130;
+  --background-tertiary: #13151e;
+  --background-info: #2d2560;
+  --background-danger: #450a0a;
+  --background-warning: #422006;
+  --background-success: #14532d;
+  --border-info: #8b7ef7;
+  
+  --color-background-primary-rgb: 26, 29, 38;
+  --color-background-secondary-rgb: 30, 33, 48;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+body {
+  font-family: var(--font-inter);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ---------- ProseMirror Editor Styles ---------- */
+.ProseMirror {
+  outline: none;
+  min-height: 300px;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--text-primary);
+  caret-color: var(--text-primary);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+.ProseMirror h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  margin-top: 1.5rem;
+  font-family: var(--font-sora);
+  color: var(--text-primary);
+}
+
+.ProseMirror h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  font-family: var(--font-sora);
+  color: var(--text-primary);
+}
+
+.ProseMirror h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  color: var(--text-primary);
+}
+
+.ProseMirror p {
+  margin-bottom: 0.75rem;
+}
+
+.ProseMirror ul, .ProseMirror ol {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ProseMirror li {
+  margin-bottom: 0.25rem;
+}
+
+.ProseMirror strong {
+  font-weight: 600;
+}
+
+.ProseMirror em {
+  font-style: italic;
+}
+
+.ProseMirror code {
+  font-family: var(--font-jetbrains);
+  font-size: 0.875em;
+  background: var(--surface-secondary);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--brand);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.ProseMirror mark {
+  background: #fef9c3;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Task list */
+ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+ul[data-type="taskList"] li > label {
+  margin-top: 2px;
+}
+ul[data-type="taskList"] li > label input[type="checkbox"] {
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--brand);
+}
+
+/* Tables – Professional styling with theme support */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  min-width: 80px;
+  vertical-align: top;
+  position: relative;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: background-color 0.2s;
+}
+
+.ProseMirror table th {
+  background: var(--surface-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ProseMirror table td:hover,
+.ProseMirror table th:hover {
+  background: var(--surface-tertiary);
+}
+
+/* Selected cell styling */
+.ProseMirror table .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--background-info);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Column resize handle */
+.ProseMirror table .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--border-info);
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ProseMirror table:hover .column-resize-handle {
+  opacity: 1;
+}
+
+/* Table with header row */
+.ProseMirror table[data-header="true"] thead th {
+  background: var(--surface-secondary);
+  border-bottom: 2px solid var(--border);
+}
+
+/* Dark mode table adjustments */
+.dark .ProseMirror table {
+  border-color: var(--border-secondary);
+}
+
+.dark .ProseMirror table td,
+.dark .ProseMirror table th {
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.dark .ProseMirror table th {
+  background: var(--surface-secondary);
+}
+
+/* Images */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  cursor: pointer;
+  display: block;
+  margin: 1rem auto;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--border-info);
+  outline-offset: 2px;
+}
+
+/* KaTeX math */
+.katex-display {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+}
+
+.katex {
+  font-size: 1.1em;
+}
+
+.katex-display .katex {
+  font-size: 1.2em;
+}
+
+/* Code blocks */
+.ProseMirror pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: var(--font-jetbrains);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 1rem 0;
+}
+
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border: none;
+  color: inherit;
+}
+
+.dark .ProseMirror pre {
+  background: #0f0f1a;
+  border: 1px solid var(--border-secondary);
+}
+
+/* Links */
+.ProseMirror a {
+  color: var(--text-info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  opacity: 0.8;
+}
+
+/* Horizontal rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* TODO chips */
+mark[data-color="#fef08a"],
+.ProseMirror mark[data-color="#fef08a"] {
+  background: #fef08a;
+  color: #713f12;
+  border-radius: 4px;
+  padding: 1px 3px;
+  font-weight: 500;
+}
+
+.dark mark[data-color="#fef08a"],
+.dark .ProseMirror mark[data-color="#fef08a"] {
+  background: #854d0e;
+  color: #fef08a;
+}
+
+/* Cross‑reference chips */
+.cross-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--background-info);
+  color: var(--text-info);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* Editor focus states */
+.ProseMirror-focused {
+  outline: none;
+}
+
+/* Selection color */
+::selection {
+  background: var(--background-info);
+  color: var(--text-primary);
+}
+
+/* Color picker range inputs */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--brand);
+  margin-top: -5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--brand);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.2s ease-out;
+}
