@@ -39,6 +39,7 @@ interface SidebarProps {
 function CoWriteXLogo({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="flex items-center gap-2">
+<<<<<<< HEAD
       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/20">
         <svg 
           viewBox="0 0 24 24" 
@@ -56,6 +57,13 @@ function CoWriteXLogo({ collapsed }: { collapsed: boolean }) {
           <circle cx="18" cy="18" r="1" fill="currentColor" stroke="none" />
         </svg>
       </div>
+=======
+      <img 
+        src="/logo.png" 
+        alt="CoWriteX" 
+        className="w-10 h-10 object-contain flex-shrink-0"
+      />
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
       {!collapsed && (
         <div className="flex flex-col">
           <span className="font-bold text-lg tracking-tight text-text-primary dark:text-white leading-none">

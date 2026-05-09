@@ -23,7 +23,10 @@ interface LeftSidebarProps {
   onSearchOpen: () => void;
   onInsertCitation: (paper: any) => void;
   onFileUpload: () => void;
+<<<<<<< HEAD
   /** Forwarded from workspace — incremented after upload/search to re-fetch sources. */
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   sourcesRefreshKey?: number;
 }
 
@@ -47,7 +50,11 @@ export function LeftSidebar({
   onSearchOpen,
   onInsertCitation,
   onFileUpload,
+<<<<<<< HEAD
   sourcesRefreshKey,
+=======
+  sourcesRefreshKey = 0,
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 }: LeftSidebarProps) {
   return (
     <aside className="hidden lg:flex flex-col w-56 h-screen flex-shrink-0 bg-surface-secondary dark:bg-dark-bg border-r border-surface-border dark:border-dark-border overflow-hidden">
@@ -73,6 +80,7 @@ export function LeftSidebar({
         />
       </div>
 
+<<<<<<< HEAD
       {/* FIXED LIBRARY PANEL */}
       <div className="border-t border-surface-border dark:border-dark-border">
         <LibraryPanel
@@ -83,6 +91,16 @@ export function LeftSidebar({
           refreshKey={sourcesRefreshKey}
         />
       </div>
+=======
+      {/* REFERENCE LIBRARY PANEL */}
+      <LibraryPanel
+        projectId={projectId}
+        onSearchOpen={onSearchOpen}
+        onInsertCitation={onInsertCitation}
+        onFileUpload={onFileUpload}
+        refreshKey={sourcesRefreshKey}
+      />
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 
     </aside>
   );

@@ -16,7 +16,11 @@
     "@tiptap/extension-code-block-lowlight": "^3.22.5",
     "@tiptap/extension-color": "^3.22.3",
     "@tiptap/extension-font-family": "^3.22.5",
+<<<<<<< HEAD
     "@tiptap/extension-highlight": "^3.22.3",
+=======
+    "@tiptap/extension-highlight": "^3.23.1",
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
     "@tiptap/extension-image": "^3.22.3",
     "@tiptap/extension-link": "^3.22.5",
     "@tiptap/extension-mathematics": "^3.22.3",

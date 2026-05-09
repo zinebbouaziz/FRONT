@@ -1,9 +1,16 @@
 'use client';
 
+<<<<<<< HEAD
 import { useState, useEffect } from 'react';
 import {
   Search, X, ExternalLink, Filter, ChevronDown,
   Check, Loader2, PlusCircle,
+=======
+import { useState } from 'react';
+import {
+  Search, X, ExternalLink, Filter, ChevronDown,
+  Loader2, PlusCircle,
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -26,6 +33,7 @@ interface LiteratureModalProps {
   onClose: () => void;
   onInsert: (paper: Paper) => void;
   projectId: string;
+<<<<<<< HEAD
   token: string; // kept for prop compat — internally we always get a fresh session token
 }
 
@@ -37,18 +45,42 @@ async function apiFetch(endpoint: string, options?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
   const freshToken = session?.access_token;
   if (!freshToken) throw new Error('No auth session — please sign in again.');
+=======
+  token: string;
+}
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+async function getToken(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || '';
+}
+
+async function apiFetch(endpoint: string, options?: RequestInit) {
+  const token = await getToken();
+  if (!token) throw new Error('No auth session');
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+<<<<<<< HEAD
       Authorization: `Bearer ${freshToken}`,
+=======
+      Authorization: `Bearer ${token}`,
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
       ...options?.headers,
     },
   });
 
   if (!res.ok) {
+<<<<<<< HEAD
     // Expose the full backend body so 500 errors are actually debuggable
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${errText}`);
   }
@@ -59,6 +91,7 @@ async function apiFetch(endpoint: string, options?: RequestInit) {
   return text ? JSON.parse(text) : null;
 }
 
+<<<<<<< HEAD
 // ─── agent_output parser ─────────────────────────────────────────────────────
 // The backend returns results in this heading format (confirmed from live response):
 //
@@ -171,6 +204,8 @@ function parseAgentOutput(output: string): Paper[] {
   return [];
 }
 
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function LiteratureModal({
@@ -180,6 +215,7 @@ export function LiteratureModal({
   projectId,
 }: LiteratureModalProps) {
   const [inputValue, setInputValue] = useState('');
+<<<<<<< HEAD
   const [searchQuery, setSearchQuery] = useState('');
 
   // papers        = already saved in DB  (from GET /sources)
@@ -189,6 +225,10 @@ export function LiteratureModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Thread ID of the pending search run (needed to call /resume)
+=======
+  const [searchResults, setSearchResults] = useState<Paper[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
 
   // Filters
@@ -200,6 +240,7 @@ export function LiteratureModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+<<<<<<< HEAD
 
   // ── Load saved sources when modal opens ──────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,11 +273,17 @@ export function LiteratureModal({
   //   "Find me the latest papers on X"
   // Returns pending_review + markdown table in agent_output.
   // Papers are NOT saved yet — user must click "Add to Library" to approve.
+=======
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // ── SEARCH ───────────────────────────────────────────────────────────────
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   const handleSearch = async () => {
     if (!inputValue.trim() || !projectId) return;
 
     setIsLoading(true);
     setError(null);
+<<<<<<< HEAD
     setSearchResults([]);
     setPendingThreadId(null);
 
@@ -268,11 +315,117 @@ export function LiteratureModal({
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
+=======
+    setSuccessMsg(null);
+    setSearchResults([]);
+    setSelected(new Set());
+    setPendingThreadId(null);
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('No auth session');
+
+      // Step 1: Trigger search (we don't care about the response since it will 500)
+      console.log('[Search] Triggering search...');
+      
+      try {
+        const res = await fetch(`${BASE_URL}/projects/${projectId}/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            user_message: `Find me the latest papers on ${inputValue.trim()}`,
+            section_id: null,
+          }),
+        });
+        
+        // Try to get thread_id from response if available
+        const responseText = await res.text();
+        try {
+          const data = JSON.parse(responseText);
+          if (data?.thread_id) {
+            setPendingThreadId(data.thread_id);
+          }
+        } catch {}
+        
+        console.log('[Search] Search triggered, status:', res.status);
+      } catch (fetchErr: any) {
+        console.log('[Search] Fetch error (expected):', fetchErr.message);
+      }
+
+      // Step 2: Wait for backend to save results (the search completes before the 500)
+      console.log('[Search] Waiting for results to be saved...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Step 3: Fetch results directly from sources table
+      console.log('[Search] Fetching saved sources...');
+      const sources = await apiFetch(`/projects/${projectId}/sources`);
+      console.log('[Search] Sources:', sources);
+
+      if (sources && Array.isArray(sources) && sources.length > 0) {
+        // Map to Paper format
+        const papers: Paper[] = sources.map((s: any) => ({
+          id: s.id,
+          title: s.title || 'Untitled',
+          authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
+          year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : new Date().getFullYear()),
+          citations: s.citations || s.citations_count || 0,
+          abstract: s.abstract || s.summary || '',
+          url: s.url,
+          pdf_url: s.pdf_url,
+          relevance_score: s.relevance_score,
+        }));
+
+        // Sort by relevance
+        papers.sort((a, b) => {
+          if (b.relevance_score && a.relevance_score) return b.relevance_score - a.relevance_score;
+          return b.year - a.year;
+        });
+
+        setSearchResults(papers);
+        setSelected(new Set(papers.map(p => p.id)));
+        console.log('[Search] Displaying', papers.length, 'papers');
+      } else {
+        // Try once more after another delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retrySources = await apiFetch(`/projects/${projectId}/sources`);
+        
+        if (retrySources && Array.isArray(retrySources) && retrySources.length > 0) {
+          const papers: Paper[] = retrySources.map((s: any) => ({
+            id: s.id,
+            title: s.title || 'Untitled',
+            authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
+            year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : new Date().getFullYear()),
+            citations: s.citations || s.citations_count || 0,
+            abstract: s.abstract || s.summary || '',
+            url: s.url,
+            pdf_url: s.pdf_url,
+            relevance_score: s.relevance_score,
+          }));
+          
+          papers.sort((a, b) => {
+            if (b.relevance_score && a.relevance_score) return b.relevance_score - a.relevance_score;
+            return b.year - a.year;
+          });
+          
+          setSearchResults(papers);
+          setSelected(new Set(papers.map(p => p.id)));
+        } else {
+          setError('No papers found. Try a different query or wait a moment and try again.');
+        }
+      }
+    } catch (err: any) {
+      console.error('[Search] Error:', err);
+      setError(err.message || 'Search failed. Please try again.');
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
     } finally {
       setIsLoading(false);
     }
   };
 
+<<<<<<< HEAD
   // ── ADD SELECTED TO LIBRARY ───────────────────────────────────────────────
   // Flow matching ThunderClient Step 15 → 12:
   //  1. POST /resume { hitl_action: "approve" }
@@ -343,6 +496,50 @@ export function LiteratureModal({
     setSearchResults([]);
     setPendingThreadId(null);
     setError(null);
+=======
+  // ── SAVE SELECTED PAPERS ────────────────────────────────────────────────
+const saveSelectedPapers = async () => {
+  if (selected.size === 0) {
+    setError('Select at least one paper first.');
+    return;
+  }
+
+  setIsSaving(true);
+  setError(null);
+  setSuccessMsg(null);
+
+  try {
+    // Simply insert the selected papers into the editor
+    const selectedPapers = searchResults.filter((p) => selected.has(p.id));
+    selectedPapers.forEach((p) => onInsert(p));
+
+    setSuccessMsg(`${selectedPapers.length} paper(s) inserted into editor!`);
+    
+    setTimeout(() => {
+      setSearchResults([]);
+      setSelected(new Set());
+      setPendingThreadId(null);
+      setInputValue('');
+      onClose();
+    }, 1000);
+
+  } catch (err: any) {
+    console.error('[Save] Error:', err);
+    setError(err.message || 'Could not insert papers.');
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  const clearSearch = () => {
+    setInputValue('');
+    setSearchResults([]);
+    setSelected(new Set());
+    setPendingThreadId(null);
+    setError(null);
+    setSuccessMsg(null);
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -352,6 +549,7 @@ export function LiteratureModal({
   const clearFilters = () => { setMinYear(''); setMinCitations(''); };
   const hasActiveFilters = minYear !== '' || minCitations !== '';
 
+<<<<<<< HEAD
   const applyFilters = (list: Paper[]) =>
     list.filter((p) => {
       const q = searchQuery.toLowerCase();
@@ -369,12 +567,15 @@ export function LiteratureModal({
   const displayPapers = searchResults.length > 0 ? searchResults : papers;
   const filteredPapers = applyFilters(displayPapers);
 
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   const toggleSelect = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelected(next);
   };
 
+<<<<<<< HEAD
   // Insert from the SAVED library into the editor (not search results)
   const insertSelected = () => {
     papers.filter((p) => selected.has(p.id)).forEach((p) => onInsert(p));
@@ -382,6 +583,25 @@ export function LiteratureModal({
     onClose();
   };
 
+=======
+  const toggleSelectAll = () => {
+    if (selected.size === filteredPapers.length && filteredPapers.length > 0) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredPapers.map(p => p.id)));
+    }
+  };
+
+  const applyFilters = (list: Paper[]) =>
+    list.filter((p) => {
+      const matchesYear = minYear === '' || p.year >= minYear;
+      const matchesCitations = minCitations === '' || p.citations >= minCitations;
+      return matchesYear && matchesCitations;
+    });
+
+  const filteredPapers = applyFilters(searchResults);
+
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   if (!isOpen) return null;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -393,9 +613,15 @@ export function LiteratureModal({
         <div className="px-6 pt-6 pb-4 shrink-0">
           <div className="flex items-start justify-between">
             <div>
+<<<<<<< HEAD
               <h2 className="text-xl font-bold text-text-primary dark:text-white">Reference Library</h2>
               <p className="text-sm text-text-secondary mt-1">
                 Search papers via AI, then select the ones you want to add
+=======
+              <h2 className="text-xl font-bold text-text-primary dark:text-white">Search Papers</h2>
+              <p className="text-sm text-text-secondary mt-1">
+                AI-powered search — select papers to keep in your library
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
               </p>
             </div>
             <button
@@ -416,6 +642,7 @@ export function LiteratureModal({
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask AI to find papers: 'latest RAG for academic writing'"
+<<<<<<< HEAD
                 className="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl border border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-primary dark:text-white placeholder-text-tertiary focus:outline-none focus:border-brand-400 dark:focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900/40"
               />
               {inputValue && (
@@ -423,6 +650,12 @@ export function LiteratureModal({
                   onClick={clearSearch}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
                 >
+=======
+                className="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl border border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-primary dark:text-white placeholder-text-tertiary focus:outline-none focus:border-brand-400"
+              />
+              {inputValue && (
+                <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary">
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -439,15 +672,23 @@ export function LiteratureModal({
 
             <button
               onClick={() => setShowFilters(!showFilters)}
+<<<<<<< HEAD
               className={`px-4 py-2.5 rounded-xl border transition-colors flex items-center gap-1.5 ${
+=======
+              className={`px-3 py-2.5 rounded-xl border transition-colors flex items-center gap-1.5 ${
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                 showFilters || hasActiveFilters
                   ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400'
                   : 'border-surface-border dark:border-dark-border bg-surface-secondary dark:bg-dark-card text-text-secondary hover:text-brand-500'
               }`}
             >
               <Filter className="w-4 h-4" />
+<<<<<<< HEAD
               <span className="text-sm font-medium">Filter</span>
               {hasActiveFilters && <span className="ml-0.5 w-2 h-2 rounded-full bg-brand-500" />}
+=======
+              {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-brand-500" />}
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
@@ -458,16 +699,24 @@ export function LiteratureModal({
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Filters</span>
                 {hasActiveFilters && (
+<<<<<<< HEAD
                   <button onClick={clearFilters} className="text-xs text-brand-500 hover:text-brand-600 font-medium">
                     Clear all
                   </button>
+=======
+                  <button onClick={clearFilters} className="text-xs text-brand-500 hover:text-brand-600 font-medium">Clear all</button>
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+<<<<<<< HEAD
                   <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">
                     Minimum Year
                   </label>
+=======
+                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Minimum Year</label>
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                   <input
                     type="number"
                     value={minYear}
@@ -477,9 +726,13 @@ export function LiteratureModal({
                   />
                 </div>
                 <div>
+<<<<<<< HEAD
                   <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">
                     Minimum Citations
                   </label>
+=======
+                  <label className="block text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Min Citations</label>
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                   <input
                     type="number"
                     value={minCitations}
@@ -493,6 +746,16 @@ export function LiteratureModal({
           )}
         </div>
 
+<<<<<<< HEAD
+=======
+        {/* ── Success Message ── */}
+        {successMsg && (
+          <div className="mx-6 mb-4 shrink-0 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-xs text-green-700 dark:text-green-300">
+            ✅ {successMsg}
+          </div>
+        )}
+
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         {/* ── Error Display ── */}
         {error && (
           <div className="mx-6 mb-4 shrink-0 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words">
@@ -500,6 +763,7 @@ export function LiteratureModal({
           </div>
         )}
 
+<<<<<<< HEAD
         {/* ── "Add Selected" toolbar — visible while temporary results are shown ── */}
         {searchResults.length > 0 && (
           <div className="px-6 pb-2 flex items-center justify-between shrink-0">
@@ -508,6 +772,24 @@ export function LiteratureModal({
             </span>
             <button
               onClick={addSelectedToLibrary}
+=======
+        {/* ── Results toolbar ── */}
+        {searchResults.length > 0 && (
+          <div className="px-6 pb-2 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSelectAll}
+                className="text-xs text-brand-500 hover:text-brand-600 font-medium"
+              >
+                {selected.size === filteredPapers.length && filteredPapers.length > 0 ? 'Deselect all' : 'Select all'}
+              </button>
+              <span className="text-xs text-text-tertiary">
+                {selected.size} of {filteredPapers.length} selected
+              </span>
+            </div>
+            <button
+              onClick={saveSelectedPapers}
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
               disabled={selected.size === 0 || isSaving}
               className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-medium transition-colors flex items-center gap-1.5"
             >
@@ -516,11 +798,16 @@ export function LiteratureModal({
               ) : (
                 <PlusCircle className="w-3.5 h-3.5" />
               )}
+<<<<<<< HEAD
               Add to Library ({selected.size})
+=======
+              Save & Insert ({selected.size})
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
             </button>
           </div>
         )}
 
+<<<<<<< HEAD
         {/* ── Paper count — visible when showing saved library ── */}
         {searchResults.length === 0 && (
           <div className="px-6 pb-2 text-xs text-text-tertiary shrink-0">
@@ -529,18 +816,30 @@ export function LiteratureModal({
           </div>
         )}
 
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         {/* ── Results list ── */}
         <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-3 min-h-0">
           {isLoading ? (
             <div className="py-16 flex flex-col items-center gap-3 text-text-tertiary">
               <Loader2 className="w-8 h-8 animate-spin opacity-40" />
               <p className="text-sm">Searching for papers…</p>
+<<<<<<< HEAD
             </div>
           ) : searchResults.length === 0 && papers.length === 0 ? (
             <div className="py-16 text-center text-text-tertiary">
               <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm font-medium">No papers yet</p>
               <p className="text-xs mt-1">Search above to find and save references</p>
+=======
+              <p className="text-xs opacity-50">Results will appear automatically</p>
+            </div>
+          ) : searchResults.length === 0 && !error ? (
+            <div className="py-16 text-center text-text-tertiary">
+              <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">Search for papers</p>
+              <p className="text-xs mt-1">Use AI to find relevant academic papers</p>
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
             </div>
           ) : filteredPapers.length === 0 ? (
             <div className="py-12 text-center text-text-tertiary">
@@ -566,7 +865,11 @@ export function LiteratureModal({
                       checked={isSelected}
                       onChange={() => toggleSelect(paper.id)}
                       onClick={(e) => e.stopPropagation()}
+<<<<<<< HEAD
                       className="mt-1 w-4 h-4 rounded border-surface-border dark:border-dark-border text-brand-500 focus:ring-brand-500 focus:ring-offset-0"
+=======
+                      className="mt-1 w-4 h-4 rounded border-surface-border dark:border-dark-border text-brand-500 focus:ring-brand-500"
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
@@ -615,6 +918,7 @@ export function LiteratureModal({
             })
           )}
         </div>
+<<<<<<< HEAD
 
         {/* ── Footer — insert saved papers into editor ── */}
         {searchResults.length === 0 && selected.size > 0 && (
@@ -631,6 +935,8 @@ export function LiteratureModal({
             </button>
           </div>
         )}
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
       </div>
     </div>
   );

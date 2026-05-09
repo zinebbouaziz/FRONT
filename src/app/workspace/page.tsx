@@ -93,6 +93,7 @@ type LitReview = {
 };
 
 async function apiFetch(endpoint: string, options?: RequestInit) {
+<<<<<<< HEAD
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
   if (!token) throw new Error('No auth session');
@@ -113,6 +114,35 @@ async function apiFetch(endpoint: string, options?: RequestInit) {
   if (!contentType || !contentType.includes('application/json')) return null;
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+=======
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('No auth session');
+
+    const url = `${API_URL}${endpoint}`;
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options?.headers,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`${res.status}: ${err}`);
+    }
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  } catch (err: any) {
+    console.error(`[apiFetch] Failed: ${err.message}`);
+    throw err;
+  }
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 }
 
 function normalizeSections(raw: any[]): Section[] {
@@ -282,9 +312,20 @@ export default function WorkspacePage() {
 
   const [sourcesRefreshKey, setSourcesRefreshKey] = useState(0);
 
+<<<<<<< HEAD
   const [litReview, setLitReview] = useState<LitReview>({
     known: '', debated: '', methodologies: '', gaps: '',
   });
+=======
+  // --- LITERATURE REVIEW STATE ---
+  const [litReview, setLitReview] = useState<LitReview>({
+    known: '', debated: '', methodologies: '', gaps: '',
+  });
+  const [litReviewLoading, setLitReviewLoading] = useState(false);
+  const [litReviewError, setLitReviewError] = useState<string | null>(null);
+  const [litGenerating, setLitGenerating] = useState(false);
+  const [hasPDFs, setHasPDFs] = useState(true);
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const pendingCount = suggestions.filter((s) => s.status === 'pending').length;
@@ -304,6 +345,7 @@ export default function WorkspacePage() {
     syncChatHistory(project.id);
   }, [project?.id, syncChatHistory]);
 
+<<<<<<< HEAD
   useEffect(() => {
     if (!project?.id) return;
     apiFetch(`/projects/${project.id}/literature`)
@@ -332,6 +374,244 @@ export default function WorkspacePage() {
       })
       .catch(() => setSuggestions([]));
   }, [activeSection?.id]);
+=======
+  // ============================================
+  // FETCH LITERATURE REVIEW - WITH DEBUG LOGS
+  // ============================================
+  const fetchLiteratureReview = useCallback(async (projectId: string) => {
+    try {
+      setLitReviewLoading(true);
+      setLitReviewError(null);
+      
+      console.log('[fetchLiteratureReview] Fetching for project:', projectId);
+      
+      const analyses = await apiFetch(`/projects/${projectId}/literature`);
+      console.log('[fetchLiteratureReview] Raw analyses response:', JSON.stringify(analyses, null, 2));
+      
+      if (analyses && Array.isArray(analyses) && analyses.length > 0) {
+        const latest = analyses[0];
+        console.log('[fetchLiteratureReview] Latest analysis ID:', latest.id);
+        console.log('[fetchLiteratureReview] Latest analysis preview:', JSON.stringify(latest, null, 2));
+        
+        const details = await apiFetch(`/literature/${latest.id}`);
+        console.log('[fetchLiteratureReview] Full details:', JSON.stringify(details, null, 2));
+        
+        if (details) {
+          // Try all possible field names
+          const known = details.known || details.what_is_known || details.summary || '';
+          const debated = details.debated || details.what_is_debated || details.controversies || '';
+          const methodologies = details.methodologies || details.methods || '';
+          const gaps = details.gaps || details.research_gaps || details.future_work || '';
+          
+          console.log('[fetchLiteratureReview] Extracted fields:', { known, debated, methodologies, gaps });
+          
+          setLitReview({ known, debated, methodologies, gaps });
+        }
+      } else if (analyses && !Array.isArray(analyses)) {
+        console.log('[fetchLiteratureReview] Single analysis returned:', JSON.stringify(analyses, null, 2));
+        const known = analyses.known || analyses.what_is_known || analyses.summary || '';
+        const debated = analyses.debated || analyses.what_is_debated || analyses.controversies || '';
+        const methodologies = analyses.methodologies || analyses.methods || '';
+        const gaps = analyses.gaps || analyses.research_gaps || analyses.future_work || '';
+        
+        setLitReview({ known, debated, methodologies, gaps });
+      } else {
+        console.log('[fetchLiteratureReview] No analyses found - empty state');
+        setLitReview({ known: '', debated: '', methodologies: '', gaps: '' });
+      }
+    } catch (err: any) {
+      console.error('[fetchLiteratureReview] Error:', err);
+      if (!err.message?.includes('404')) {
+        setLitReviewError(err.message);
+      }
+    } finally {
+      setLitReviewLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    fetchLiteratureReview(project.id);
+  }, [project?.id, fetchLiteratureReview]);
+
+  // ============================================
+  // GENERATE LITERATURE REVIEW
+  // ============================================
+  const handleGenerateLiteratureReview = useCallback(async () => {
+    if (!project?.id) return;
+
+    setLitGenerating(true);
+    setLitReviewError(null);
+
+    try {
+      console.log('[Generate] Starting literature review generation...');
+      
+      const res = await apiFetch(`/projects/${project.id}/run`, {
+        method: 'POST',
+        body: JSON.stringify({
+          user_message: 'Generate a comprehensive literature review analysis from the uploaded PDFs. Structure the output with these sections: "What is Known", "What is Debated", "Methodologies", and "Research Gaps".',
+          section_id: null,
+        }),
+      });
+
+      console.log('[Generate] Run response:', JSON.stringify(res, null, 2));
+
+      if (res?.status === 'pending_review' && res?.thread_id) {
+        console.log('[Generate] Auto-approving thread:', res.thread_id);
+        
+        const approveRes = await apiFetch(`/projects/${project.id}/run/${res.thread_id}/resume`, {
+          method: 'POST',
+          body: JSON.stringify({ hitl_action: 'approve' }),
+        });
+
+        console.log('[Generate] Approve response:', JSON.stringify(approveRes, null, 2));
+
+        // Wait for backend to save
+        console.log('[Generate] Waiting 2 seconds for backend to save...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('[Generate] Fetching updated literature review...');
+        await fetchLiteratureReview(project.id);
+        await syncChatHistory(project.id);
+        
+      } else if (res?.status === 'completed' || res?.agent_output) {
+        console.log('[Generate] Content already completed, waiting 1.5s...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await fetchLiteratureReview(project.id);
+        
+      } else {
+        console.log('[Generate] No expected response, starting polling...');
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            const literature = await apiFetch(`/projects/${project.id}/literature`);
+            console.log(`[Generate] Poll attempt ${attempts + 1}:`, literature);
+            if (literature && (Array.isArray(literature) ? literature.length > 0 : literature.id)) {
+              await fetchLiteratureReview(project.id);
+              break;
+            }
+          } catch (e) {
+            console.log(`[Generate] Poll attempt ${attempts + 1} failed`);
+          }
+          attempts++;
+        }
+      }
+    } catch (err: any) {
+      console.error('[Generate Literature Review] Error:', err);
+      setLitReviewError(err.message || 'Failed to generate literature review');
+    } finally {
+      setLitGenerating(false);
+    }
+  }, [project?.id, fetchLiteratureReview, syncChatHistory]);
+
+  // ============================================
+  // REGENERATE LITERATURE REVIEW
+  // ============================================
+  const handleRegenerateLiteratureReview = useCallback(async () => {
+    if (!project?.id) return;
+
+    setLitGenerating(true);
+    setLitReviewError(null);
+
+    try {
+      console.log('[Regenerate] Starting regeneration...');
+      
+      const res = await apiFetch(`/projects/${project.id}/run`, {
+        method: 'POST',
+        body: JSON.stringify({
+          user_message: 'Regenerate the literature review analysis with fresh insights. Focus on emerging trends, recent developments, and critical analysis. Structure with: "What is Known", "What is Debated", "Methodologies", and "Research Gaps".',
+          section_id: null,
+        }),
+      });
+
+      console.log('[Regenerate] Run response:', JSON.stringify(res, null, 2));
+
+      if (res?.status === 'pending_review' && res?.thread_id) {
+        const approveRes = await apiFetch(`/projects/${project.id}/run/${res.thread_id}/resume`, {
+          method: 'POST',
+          body: JSON.stringify({ hitl_action: 'approve' }),
+        });
+
+        console.log('[Regenerate] Approve response:', JSON.stringify(approveRes, null, 2));
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await fetchLiteratureReview(project.id);
+        await syncChatHistory(project.id);
+        
+      } else if (res?.status === 'completed' || res?.agent_output) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await fetchLiteratureReview(project.id);
+      }
+    } catch (err: any) {
+      console.error('[Regenerate Literature Review] Error:', err);
+      setLitReviewError(err.message || 'Failed to regenerate literature review');
+    } finally {
+      setLitGenerating(false);
+    }
+  }, [project?.id, fetchLiteratureReview, syncChatHistory]);
+
+  // ============================================
+  // FILE UPLOAD
+  // ============================================
+const handleFileUpload = useCallback(() => {
+  if (!project?.id) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf';
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const res = await fetch(`${API_URL}/projects/${project.id}/upload/pdf`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      console.log('[Upload] Success:', data.filename);
+      
+      // Force multiple refreshes with delays
+      console.log('[Upload] Triggering refresh sequence...');
+      
+      // Immediate refresh
+      setSourcesRefreshKey(prev => {
+        console.log('[Upload] Refresh key before:', prev);
+        return prev + 1;
+      });
+      
+      // Delayed refresh (backend might still be processing)
+      setTimeout(() => {
+        console.log('[Upload] Delayed refresh 1');
+        setSourcesRefreshKey(prev => prev + 1);
+      }, 1500);
+      
+      setTimeout(() => {
+        console.log('[Upload] Delayed refresh 2');
+        setSourcesRefreshKey(prev => prev + 1);
+      }, 3000);
+      
+      alert(`Uploaded: ${data.filename}`);
+      
+    } catch (err: any) {
+      alert('Upload failed: ' + err.message);
+    }
+  };
+  input.click();
+}, [project?.id]);
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 
   const fetchVersions = useCallback(async (sectionId: string) => {
     setVersionsLoading(true);
@@ -737,6 +1017,7 @@ export default function WorkspacePage() {
     }
   }, [editor, activeSection?.id]);
 
+<<<<<<< HEAD
   const handleFileUpload = useCallback(() => {
     if (!project?.id) return;
     const input = document.createElement('input');
@@ -760,6 +1041,8 @@ export default function WorkspacePage() {
     input.click();
   }, [project?.id]);
 
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   const wordCount = editor?.getText().trim().split(/\s+/).filter(Boolean).length ?? 0;
   const charCount = editor?.getText().length ?? 0;
 
@@ -812,6 +1095,7 @@ export default function WorkspacePage() {
         wordCount={wordCount} charCount={charCount}
         onInlineSuggestion={handleInlineSuggestion}
       />
+<<<<<<< HEAD
       <RightPanel
         rightPanel={rightPanel} rightOpen={rightOpen}
         setRightPanel={setRightPanel} setRightOpen={setRightOpen}
@@ -834,6 +1118,29 @@ export default function WorkspacePage() {
         projectId={project.id}
         token={authToken ?? ''}
       />
+=======
+<RightPanel
+  rightPanel={rightPanel} rightOpen={rightOpen}
+  setRightPanel={setRightPanel} setRightOpen={setRightOpen}
+  pendingCount={pendingCount} messages={messages}
+  chatInput={chatInput} setChatInput={setChatInput}
+  sendMessage={sendMessage} chatLoading={chatLoading}
+  suggestions={suggestions} onAcceptSuggestion={handleAccept}
+  onRejectSuggestion={handleReject} onInsertCitation={insertCitation}
+  projectId={project.id}
+  token={authToken ?? ''}
+  hitlStatus={hitlStatus}
+  hitlAgentOutput={hitlAgentOutput}
+  hitlIntents={hitlIntents}
+  onHitlApprove={handleHitlApprove}
+  onHitlEdit={handleHitlEdit}
+  onHitlRegenerate={handleHitlRegenerate}
+  versions={versions}
+  versionsLoading={versionsLoading}
+  onRestoreVersion={handleRestoreVersion}
+  sectionId={activeSection?.id ?? null}
+/>
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
       <LiteratureModal
         isOpen={searchOpen}
         onClose={() => setSearchOpen(false)}

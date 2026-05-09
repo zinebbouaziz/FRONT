@@ -8,7 +8,11 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+<<<<<<< HEAD
 /* ─── reusable primitives ─── */
+=======
+/* ─── Reusable components ─── */
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
 
 function SectionCard({ title, icon: Icon, iconBg, children, action }: {
   title: string;
@@ -225,21 +229,33 @@ export default function SettingsPage() {
   // ─── Theme ──────────────────────────────────────────
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
+<<<<<<< HEAD
   // ─── Fetch user data from backend & metadata on mount ─
+=======
+  // ─── Fetch user profile from backend + AI prefs from metadata ───
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   useEffect(() => {
     const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+<<<<<<< HEAD
         if (!session) return; // user not logged in
 
         // 1. Get user profile from backend (PATCHable fields)
         const token = session.access_token;
+=======
+        if (!session) return;
+        const token = session.access_token;
+
+        // 1. Profile from backend
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         const res = await fetch(`${API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
           setFullName(data.full_name || '');
+<<<<<<< HEAD
           setEmail(data.email || ''); // may come from Supabase claims, but not editable directly via this endpoint
           setPosition(data.academic_position || '');
           setDepartment(data.organization || ''); // map to department for UI
@@ -253,6 +269,25 @@ export default function SettingsPage() {
           setSelectedModel(meta.selectedModel || 'gemini');
           setAssistantLevel(meta.assistantLevel || 'moderate');
           setTone(meta.tone || 'academic');
+=======
+          setEmail(data.email || '');
+          setPosition(data.academic_position || '');
+          setDepartment(data.organization || '');
+          setInterests(
+            data.field_interests
+              ? data.field_interests.split(',').map((s: string) => s.trim())
+              : []
+          );
+        }
+
+        // 2. AI preferences from Supabase Auth user metadata
+        const { data: { user } } = await supabase.auth.getUser();
+        const aiPrefs = user?.user_metadata?.ai_preferences;
+        if (aiPrefs) {
+          setSelectedModel(aiPrefs.selectedModel || 'gemini');
+          setAssistantLevel(aiPrefs.assistantLevel || 'moderate');
+          setTone(aiPrefs.tone || 'academic');
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -301,8 +336,13 @@ export default function SettingsPage() {
         body: JSON.stringify({
           full_name: fullName,
           academic_position: position,
+<<<<<<< HEAD
           organization: department,               // backend field is "organization"
           field_interests: interests.join(', '),   // comma-separated string
+=======
+          organization: department,
+          field_interests: interests.join(', '),
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         }),
       });
 
@@ -321,6 +361,7 @@ export default function SettingsPage() {
     }
   };
 
+<<<<<<< HEAD
   // ─── Save AI preferences to Supabase user metadata ──
   const handleSaveAI = async () => {
     setAiLoading(true);
@@ -330,6 +371,21 @@ export default function SettingsPage() {
         data: { ai_preferences: prefs },
       });
 
+=======
+  // ─── Save AI preferences to user metadata ──────────
+  const handleSaveAI = async () => {
+    setAiLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          ai_preferences: {
+            selectedModel,
+            assistantLevel,
+            tone,
+          },
+        },
+      });
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
       if (error) throw error;
 
       setSavedAI(true);
@@ -351,7 +407,10 @@ export default function SettingsPage() {
 
   const removeInterest = (i: string) => setInterests(interests.filter(x => x !== i));
 
+<<<<<<< HEAD
   // ─── Initials from name ────────────────────────────
+=======
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
   const initials = fullName
     .split(' ')
     .map(n => n[0])
@@ -414,8 +473,12 @@ export default function SettingsPage() {
           </Field>
 
           <Field label="Email address">
+<<<<<<< HEAD
             <Input value={email} onChange={setEmail} placeholder="you@university.edu" type="email"  />
             {/* Email is read-only (managed by Supabase) */}
+=======
+            <Input value={email} onChange={setEmail} placeholder="you@university.edu" type="email" />
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
           </Field>
 
           <Field label="Academic Position">
@@ -478,7 +541,15 @@ export default function SettingsPage() {
       </SectionCard>
 
       {/* ── AI Preferences ── */}
+<<<<<<< HEAD
       <SectionCard title="AI Preferences" icon={Cpu} iconBg="bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400">
+=======
+      <SectionCard
+        title="AI Preferences"
+        icon={Cpu}
+        iconBg="bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400"
+      >
+>>>>>>> 3d76b04f5771a2d5df5b09c48f3c224eda0fb384
         <Field label="AI Model">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {AI_MODELS.map(model => {
