@@ -804,8 +804,8 @@ ${content}
 
         <button
           onClick={() => onInlineSuggestion?.()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:scale-105"
-          style={{ background: vars.bgInfo, color: vars.textInfo }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+          style={{ background: 'var(--brand, #6550e8)', color: 'white' }}
           title="Generate inline AI suggestion from selected text"
         >
           <MessageSquare className="w-3.5 h-3.5" />

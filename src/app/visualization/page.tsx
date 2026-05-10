@@ -566,7 +566,7 @@ SwinUNETR,0.88`;
   return (
     <div className="flex h-full w-full overflow-hidden animate-fade-in">
       <CSVPasteModal isOpen={isCSVModalOpen} onClose={() => setIsCSVModalOpen(false)} onLoad={handleLoadCSV} />
-      <input type="file" ref={fileInputRef} accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={handleFileUpload} />
+      <input type="file" ref={fileInputRef} accept=".pdf,application/pdf" className="hidden" onChange={handleFileUpload} />
 
       <aside className="flex-shrink-0 h-full overflow-y-auto border-r border-surface-border dark:border-dark-border bg-white dark:bg-dark-surface flex flex-col" style={{ flexBasis: '40%', maxWidth: '40%', minWidth: '280px' }}>
         <div className="px-4 py-4 border-b border-surface-border dark:border-dark-border">

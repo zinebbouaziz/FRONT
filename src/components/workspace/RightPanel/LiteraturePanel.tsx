@@ -378,7 +378,8 @@ export function LiteratureReviewPanel({
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
+            style={{ background: 'var(--brand, #6550e8)', color: 'white' }}
           >
             {generating ? (
               <>
@@ -501,7 +502,8 @@ export function LiteratureReviewPanel({
         <button
           onClick={handleRegenerate}
           disabled={generating}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-surface-border dark:border-dark-border text-text-secondary dark:text-text-tertiary text-xs font-medium hover:border-brand-300 dark:hover:border-brand-600 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          style={{ background: 'var(--brand, #6550e8)', color: 'white' }}
         >
           {generating ? (
             <>

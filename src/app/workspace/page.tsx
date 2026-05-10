@@ -904,12 +904,12 @@ const handleFileUpload = useCallback(() => {
   const handleReject = useCallback((id: string) => {
     const inlineSuggestion = suggestions.find((s) => s.id === id && !!s.inlineMeta);
     if (inlineSuggestion) {
-      setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      setSuggestions((prev) => prev.map((s) => s.id === id ? { ...s, status: 'rejected' } : s));
       return;
     }
 
     apiFetch(`/suggestions/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) })
-      .then(() => setSuggestions((prev) => prev.filter((s) => s.id !== id)))
+      .then(() => setSuggestions((prev) => prev.map((s) => s.id === id ? { ...s, status: 'rejected' } : s)))
       .catch(() => {});
   }, [suggestions]);
 

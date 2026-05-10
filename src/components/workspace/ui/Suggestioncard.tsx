@@ -17,9 +17,9 @@ export function SuggestionCard({ suggestion, onAccept, onReject }: SuggestionCar
 
   const statusStyle =
     suggestion.status === 'accepted'
-      ? 'border-green-300 bg-green-50/40 dark:border-green-700 dark:bg-green-900/10'
+      ? 'border-green-400 bg-green-100/30 dark:border-green-600 dark:bg-green-900/20'
       : suggestion.status === 'rejected'
-      ? 'border-red-300 bg-red-50/40 dark:border-red-700 dark:bg-red-900/10'
+      ? 'border-red-400 bg-red-100/40 dark:border-red-600 dark:bg-red-900/30'
       : 'border-surface-border bg-white dark:border-dark-border dark:bg-dark-card';
 
   return (
