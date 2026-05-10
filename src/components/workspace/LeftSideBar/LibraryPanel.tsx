@@ -25,31 +25,53 @@ interface LibraryPanelProps {
 }
 
 async function apiFetch(endpoint: string, options?: RequestInit) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  if (!token) throw new Error('No auth session');
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('No auth session');
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
-  
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`${res.status}: ${err}`);
+    const url = `${API_URL}${endpoint}`;
+    console.log(`[apiFetch] 🌐 ${options?.method || 'GET'} ${url}`);
+    
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options?.headers,
+      },
+    });
+    
+    console.log(`[apiFetch] 📡 Response status: ${res.status} ${res.statusText}`);
+    
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[apiFetch] ❌ Error ${res.status}: ${err}`);
+      throw new Error(`${res.status}: ${err}`);
+    }
+    
+    const contentType = res.headers.get('content-type');
+    console.log(`[apiFetch] 📄 Content-Type: ${contentType}`);
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`[apiFetch] ⚠️ Non-JSON response for ${endpoint}`);
+      const text = await res.text();
+      console.log(`[apiFetch] 📝 Raw response (first 200 chars):`, text.substring(0, 200));
+      return null;
+    }
+    
+    const text = await res.text();
+    console.log(`[apiFetch] 📝 Raw JSON string (first 300 chars):`, text.substring(0, 300));
+    
+    const data = text ? JSON.parse(text) : null;
+    console.log(`[apiFetch] ✅ Parsed data:`, data);
+    console.log(`[apiFetch] 📊 Data type:`, Array.isArray(data) ? `Array(${data.length})` : typeof data);
+    
+    return data;
+  } catch (err: any) {
+    console.error(`[apiFetch] 💥 Failed for ${endpoint}: ${err.message}`);
+    throw err;
   }
-  
-  const contentType = res.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
-    return null;
-  }
-  
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
 }
 
 export function LibraryPanel({
@@ -64,29 +86,35 @@ export function LibraryPanel({
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const prevRefreshKey = useRef(refreshKey);
+  const previousRefreshKey = useRef(refreshKey);
 
   const fetchSources = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId) {
+      console.log('[LibraryPanel] ⏭️ No projectId, skipping fetch');
+      return;
+    }
     
-    console.log('[LibraryPanel] Fetching sources, refreshKey:', refreshKey);
+    console.log(`[LibraryPanel] 🔄 Fetching sources for project: ${projectId}`);
+    console.log(`[LibraryPanel] 🔑 Current refreshKey: ${refreshKey}`);
     
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch both sources and uploaded PDFs
-      const [sourcesData, pdfsData] = await Promise.all([
-        apiFetch(`/projects/${projectId}/sources`).catch(() => []),
-        apiFetch(`/projects/${projectId}/upload/pdf`).catch(() => []),
-      ]);
+      // Fetch sources
+      console.log('[LibraryPanel] 📥 Fetching /sources...');
+      const sourcesData = await apiFetch(`/projects/${projectId}/sources`);
+      console.log('[LibraryPanel] 📦 Sources data received:', sourcesData);
       
-      console.log('[LibraryPanel] Raw sources:', sourcesData);
-      console.log('[LibraryPanel] Raw PDFs:', pdfsData);
+      // Fetch uploaded PDFs
+      console.log('[LibraryPanel] 📥 Fetching /upload/pdf...');
+      const pdfsData = await apiFetch(`/projects/${projectId}/upload/pdf`);
+      console.log('[LibraryPanel] 📦 PDFs data received:', pdfsData);
+      console.log('[LibraryPanel] 📦 PDFs data type:', typeof pdfsData, Array.isArray(pdfsData));
       
       // Map search sources
       const searchSources: Source[] = (Array.isArray(sourcesData) ? sourcesData : []).map((s: any) => ({
-        id: s.id,
+        id: s.id || `source-${Math.random()}`,
         title: s.title || 'Untitled',
         authors: Array.isArray(s.authors) ? s.authors.join(', ') : (s.authors || 'Unknown'),
         year: s.year || (s.created_at ? new Date(s.created_at).getFullYear() : new Date().getFullYear()),
@@ -95,15 +123,44 @@ export function LibraryPanel({
         source_type: 'search' as const,
       }));
 
-      // Map uploaded PDFs - handle different response formats
-      const pdfSources: Source[] = (Array.isArray(pdfsData) ? pdfsData : []).map((f: any) => {
-        // The backend might return different field names
-        const filename = f.filename || f.name || f.path || f.title || 'Uploaded PDF';
-        const id = f.id || f.filename || f.path || `pdf-${Math.random().toString(36).substr(2, 9)}`;
+      console.log('[LibraryPanel] 🔍 Mapped search sources:', searchSources.length);
+      
+      // Map uploaded PDFs - CRITICAL: Handle all possible response formats
+      let rawPdfs = [];
+      if (Array.isArray(pdfsData)) {
+        rawPdfs = pdfsData;
+        console.log('[LibraryPanel] 📄 PDFs is array of length:', rawPdfs.length);
+      } else if (pdfsData && typeof pdfsData === 'object') {
+        // Maybe it's wrapped in a data property?
+        if (pdfsData.data && Array.isArray(pdfsData.data)) {
+          rawPdfs = pdfsData.data;
+          console.log('[LibraryPanel] 📄 PDFs found in .data property, length:', rawPdfs.length);
+        } else if (pdfsData.files && Array.isArray(pdfsData.files)) {
+          rawPdfs = pdfsData.files;
+          console.log('[LibraryPanel] 📄 PDFs found in .files property, length:', rawPdfs.length);
+        } else if (pdfsData.pdfs && Array.isArray(pdfsData.pdfs)) {
+          rawPdfs = pdfsData.pdfs;
+          console.log('[LibraryPanel] 📄 PDFs found in .pdfs property, length:', rawPdfs.length);
+        } else {
+          // Single object
+          rawPdfs = [pdfsData];
+          console.log('[LibraryPanel] 📄 Single PDF object, wrapping in array');
+        }
+      }
+      
+      console.log('[LibraryPanel] 📄 Raw PDFs to process:', rawPdfs.length, rawPdfs);
+      
+      const pdfSources: Source[] = rawPdfs.map((f: any, index: number) => {
+        console.log(`[LibraryPanel] 📄 Processing PDF ${index}:`, f);
+        
+        const filename = f.filename || f.name || f.file_name || f.path || f.title || 'Uploaded PDF';
+        const id = f.id || f.file_id || f.filename || f.path || `pdf-${Math.random().toString(36).substr(2, 9)}`;
+        
+        console.log(`[LibraryPanel] 📄 Mapped PDF: id=${id}, filename=${filename}`);
         
         return {
           id: id,
-          title: filename.replace(/\.pdf$/i, ''), // Remove .pdf extension for display
+          title: filename.replace(/\.pdf$/i, ''),
           authors: 'Uploaded PDF',
           year: f.created_at ? new Date(f.created_at).getFullYear() : new Date().getFullYear(),
           citations: 0,
@@ -112,10 +169,17 @@ export function LibraryPanel({
         };
       });
 
+      console.log('[LibraryPanel] 📄 Mapped PDF sources:', pdfSources.length);
+      
       // Merge and de-duplicate
       const searchIds = new Set(searchSources.map(s => s.id));
       const uniquePdfs = pdfSources.filter(p => !searchIds.has(p.id));
       const allSources = [...searchSources, ...uniquePdfs];
+
+      console.log('[LibraryPanel] 🔗 Merged sources:');
+      console.log(`  - Search sources: ${searchSources.length}`);
+      console.log(`  - PDF sources: ${pdfSources.length} (${uniquePdfs.length} unique)`);
+      console.log(`  - Total: ${allSources.length}`);
 
       // Sort
       const sorted = allSources.sort((a, b) => {
@@ -125,24 +189,32 @@ export function LibraryPanel({
         return b.year - a.year;
       });
 
-      console.log('[LibraryPanel] Total sources:', sorted.length, sorted);
+      console.log(`[LibraryPanel] ✅ Final sources count: ${sorted.length}`, sorted);
       setSources(sorted);
       
     } catch (err: any) {
-      console.error('[LibraryPanel] Error:', err);
-      setError(err.message);
+      console.error('[LibraryPanel] ❌ Error:', err);
+      setError(err.message || 'Failed to load sources');
     } finally {
       setLoading(false);
     }
-  }, [projectId, refreshKey]);
+  }, [projectId]);
 
   // Fetch on mount and when refreshKey changes
   useEffect(() => {
-    if (prevRefreshKey.current !== refreshKey) {
-      console.log('[LibraryPanel] refreshKey changed from', prevRefreshKey.current, 'to', refreshKey);
-      prevRefreshKey.current = refreshKey;
+    console.log(`[LibraryPanel] ⚡ Effect triggered`);
+    console.log(`  - Current refreshKey: ${refreshKey}`);
+    console.log(`  - Previous refreshKey: ${previousRefreshKey.current}`);
+    console.log(`  - Changed: ${refreshKey !== previousRefreshKey.current}`);
+    
+    if (refreshKey !== previousRefreshKey.current) {
+      console.log('[LibraryPanel] 🔄 refreshKey changed, fetching sources...');
+      fetchSources();
+    } else {
+      console.log('[LibraryPanel] ⏭️ refreshKey unchanged, skipping fetch');
     }
-    fetchSources();
+    
+    previousRefreshKey.current = refreshKey;
   }, [fetchSources, refreshKey]);
 
   const displayedSources = isExpanded ? sources : sources.slice(0, 4);
@@ -188,7 +260,8 @@ export function LibraryPanel({
 
         {!loading && error && (
           <div className="py-3 text-center">
-            <p className="text-[10px] text-red-500 mb-1">{error}</p>
+            <p className="text-[10px] text-red-500 mb-1">Failed to load</p>
+            <p className="text-[9px] text-text-tertiary mb-2">{error}</p>
             <button 
               onClick={fetchSources}
               className="text-[10px] text-brand-500 hover:text-brand-600 font-medium"
@@ -206,7 +279,7 @@ export function LibraryPanel({
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && sources.length > 0 && (
           <div className="space-y-1.5">
             {displayedSources.map((src) => {
               const isUpload = src.source_type === 'upload';
